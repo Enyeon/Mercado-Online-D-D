@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Mercado Arcano</title>
+        <link rel="stylesheet" href="/src/CSS/styles.css">
+    </head>
+    <body>
+
+        <header class="topbar">
+            <h1 class="logo">Mercado Arcano</h1>
+            <div class="economy">
+                <div class="market-mode">
+                    <button id="mode-buy">Comprar</button>
+                    <button id="mode-sell">Vender</button>
+                    <button id="view-inventory">Ver inventario</button>
+                </div>
+
+                <div>Dinero: <span id="player-money"></span></div>
+
+                <select id="currency-system">
+                    <option value="dnd">Monedas D&D</option>
+                    <option value="lord">Monedas Lord100</option>
+                </select>
+            </div>
+        </header>
+
+        <main class="container">
+            <section class="catalog">
+                <select id="category-select">
+                    <option value="">Mostrar todo</option>
+                    <option value="materiales">Materiales</option>
+                    <option value="pociones">Pociones</option>
+                    <option value="armas">Armas</option>
+                    <option value="armaduras">Armaduras</option>
+                    <option value="magico">Objetos mágicos</option>
+                </select>
+
+                <select id="piso-select">
+                    <option value="all">Mostrar todos los artículos</option>
+                </select>
+
+                <input
+                    type="text"
+                    id="search"
+                    placeholder="Buscar ítem..."
+                >
+
+                <div id="item-list" class="item-list"></div>
+            </section>
+
+            <section id="item-detail" class="item-detail">
+                <h2>Selecciona un ítem</h2>
+            </section>
+        </main>
+
+
+
+        <script src="/src/JS/app.js"></script>
+        <script src="/src/JS/market-data.js"></script>
+    </body>
+</html>
