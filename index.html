@@ -1,63 +1,142 @@
 <!DOCTYPE html>
 <html lang="es">
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Mercado Arcano</title>
-        <link rel="stylesheet" href="/src/CSS/styles.css">
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mercado Arcano RPG</title>
+        <link rel="stylesheet" href="./src/CSS/ui-theme.css" />
     </head>
     <body>
 
         <header class="topbar">
-            <h1 class="logo">Mercado Arcano</h1>
-            <div class="economy">
-                <div class="market-mode">
-                    <button id="mode-buy">Comprar</button>
-                    <button id="mode-sell">Vender</button>
-                    <button id="view-inventory">Ver inventario</button>
-                </div>
+            <h1 class="title">Mercado Arcano</h1>
 
-                <div>Dinero: <span id="player-money"></span></div>
+            <div class="actions">
+                <button id="mode-buy" class="tab active">Comprar</button>
+                <button id="mode-sell" class="tab">Vender</button>
+                <button id="mode-inventory" class="tab">Inventario</button>
+            </div>
 
-                <select id="currency-system">
-                    <option value="dnd">Monedas D&D</option>
-                    <option value="lord">Monedas Lord100</option>
-                </select>
+            <div class="money">
+                <span class="money-icon">💰</span>
+                <span class="money-label">Dinero:</span>
+                <span id="player-money" class="money-value"></span>
             </div>
         </header>
 
-        <main class="container">
-            <section class="catalog">
-                <select id="category-select">
-                    <option value="">Mostrar todo</option>
-                    <option value="materiales">Materiales</option>
-                    <option value="pociones">Pociones</option>
-                    <option value="armas">Armas</option>
-                    <option value="armaduras">Armaduras</option>
-                    <option value="magico">Objetos mágicos</option>
+        <main class="layout">
+            <section class="left-panel">
+                <select id="market-section" class="market-select">
+                    <option value="items">Objetos y equipamiento</option>
+                    <option value="mounts">Monturas</option>
+                    <option value="vehicles">Transporte</option>
                 </select>
 
-                <select id="piso-select">
-                    <option value="all">Mostrar todos los artículos</option>
-                </select>
+                <div id="filters" class="filters hidden"></div>
 
-                <input
-                    type="text"
-                    id="search"
-                    placeholder="Buscar ítem..."
-                >
+                <button id="create-item-btn" class="btn btn-create hidden">
+                    Crear objeto manual
+                </button>
 
                 <div id="item-list" class="item-list"></div>
             </section>
 
-            <section id="item-detail" class="item-detail">
-                <h2>Selecciona un ítem</h2>
-            </section>
+            <aside id="item-detail" class="detail-panel">
+                <div class="detail-placeholder">
+                    Selecciona un objeto para ver sus detalles.
+                </div>
+            </aside>
         </main>
 
+        <footer class="footer">
+            <p id="system-message" class="system-message info">
+                Sistema listo.
+            </p>
+        </footer>
+
+        <!-- =========================
+            MODAL CREAR OBJETO
+        ========================= -->
+
+        <div id="create-item-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3 class="modal-title">Crear objeto manual</h3>
+
+                <form class="modal-form">
+                    <label class="form-group">
+                        <span class="form-label">Nombre</span>
+                        <input class="form-input" name="name" required />
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Descripción</span>
+                        <textarea class="form-textarea" name="description" required></textarea>
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Tipo</span>
+                        <select id="modal-type" class="form-select" name="type" required></select>
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Rareza</span>
+                        <select id="modal-rarity" class="form-select" name="rarity" required></select>
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Cantidad</span>
+                        <input class="form-input" name="quantity" type="number" min="1" value="1" required />
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Valor estimado</span>
+                        <input class="form-input" name="basePrice" type="number" min="1" value="20" required />
+                    </label>
+
+                    <label class="toggle-line">
+                        <input name="stackable" type="checkbox" />
+                        <span>Este objeto es acumulable</span>
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Tamaño de slot</span>
+                        <input class="form-input" name="slotSize" type="number" min="1" value="1" required />
+                    </label>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Crear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- =========================
+            MODAL WARNING
+        ========================= -->
+
+        <div id="warning-modal" class="modal hidden">
+            <div class="modal-content warning-skin">
+
+                <h3 id="warning-title" class="modal-title">
+                    Aviso del Mercado
+                </h3>
+
+                <p id="warning-text" class="modal-text"></p>
+
+                <div class="modal-actions">
+                    <button id="warning-cancel" class="btn btn-secondary" type="button">
+                        Cancelar compra
+                    </button>
+                    <button id="warning-confirm" class="btn btn-danger" type="button">
+                        Aceptar riesgo
+                    </button>
+                </div>
+
+            </div>
+        </div>
 
 
-        <script src="/src/JS/app.js"></script>
-        <script src="/src/JS/market-data.js"></script>
+        <script type="module" src="./src/JS/main.js"></script>
     </body>
 </html>
