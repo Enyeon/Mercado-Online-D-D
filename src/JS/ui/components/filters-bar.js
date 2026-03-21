@@ -16,11 +16,11 @@ function buildOptions(items) {
 
 export function renderFilters(container) {
     container.innerHTML = `
-        <input id="search-input" placeholder="Buscar reliquias, armas o artefactos..." type="text" />
-        <select id="type-filter">
+        <input id="search-input" class="form-select" placeholder="Buscar reliquias, armas o artefactos..." type="text" />
+        <select id="type-filter" class="form-select">
             ${buildOptions([{ value: 'all', label: 'Todos los tipos' }, ...ITEM_TYPES.map((type) => ({ value: type, label: type }))])}
         </select>
-        <select id="rarity-filter">
+        <select id="rarity-filter" class="form-select">
             ${buildOptions([{ value: 'all', label: 'Todas las rarezas' }, ...RARITY_OPTIONS.map((rarity) => ({ value: rarity.id, label: rarity.label }))])}
         </select>
     `;

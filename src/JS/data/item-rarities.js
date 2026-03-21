@@ -11,50 +11,50 @@ export const ITEM_RARITIES = {
     common: {
         label: 'Común',
         multiplier: 1,
-        color: '#8f98a3',
+        color: '#9aa0a6',
         glow: 'none'
     },
     uncommon: {
         label: 'Poco común',
         multiplier: 1.25,
-        color: '#4caf50',
-        glow: '0 0 8px #4caf5073'
+        color: '#5fbf5f',
+        glow: '0 0 6px #5fbf5f66'
     },
     rare: {
         label: 'Raro',
         multiplier: 1.6,
-        color: '#434fff',
-        glow: '0 0 10px #434fff80'
+        color: '#4d8dff',
+        glow: '0 0 10px #4d8dff88'
     },
     veryRare: {
         label: 'Muy raro',
         multiplier: 2.1,
-        color: '#1c00d2',
-        glow: '0 0 12px #1c00d28c'
+        color: '#a66bff',
+        glow: '0 0 12px #a66bff99'
     },
     epic: {
         label: 'Épico',
         multiplier: 2.5,
-        color: '#8500c7',
-        glow: '0 0 12px #8500c799'
+        color: '#d957ff',
+        glow: '0 0 14px #d957ffaa'
+    },
+    mythic: {
+        label: 'Mítico',
+        multiplier: 4.4,
+        color: '#ff3df0',
+        glow: '0 0 18px #ff3df0cc'
     },
     legendary: {
         label: 'Legendario',
         multiplier: 3.2,
         color: '#f7c948',
-        glow: '0 0 14px #f7c94899'
-    },
-    mythic: {
-        label: 'Mítico',
-        multiplier: 4.4,
-        color: '#6600ff',
-        glow: '0 0 14px #6600ffa6'
+        glow: '0 0 16px #f7c948cc'
     },
     unique: {
         label: 'Único',
         multiplier: 6,
-        color: '#ff2d2d',
-        glow: '0 0 16px #ff2d2dbf'
+        color: '#ff3b3b',
+        glow: '0 0 20px #ff3b3bcc, 0 0 30px #ff000066'
     },
 };
 

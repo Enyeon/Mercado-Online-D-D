@@ -31,7 +31,7 @@ export function bindCreateItemModal({ modal, openButton, onConfirm, onClose }) {
         event.preventDefault();
         const data = new FormData(form);
         onConfirm({
-            name: String(data.get('name') ?? '').trim(),
+            name: String(data.get('name-objet') ?? '').trim(),
             description: String(data.get('description') ?? '').trim(),
             type: String(data.get('type') ?? '').trim(),
             rarity: String(data.get('rarity') ?? '').trim(),

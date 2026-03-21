@@ -62,12 +62,15 @@ const els = {
     marketSection: document.querySelector('#market-section'),
     filters: document.querySelector('#filters'),
     createItemBtn: document.querySelector('#create-item-btn'),
-    messages: document.querySelector('#system-message'),
     createItemModal: document.querySelector('#create-item-modal'),
     warningModal: document.querySelector('#warning-modal'),
 };
 
 const askWarning = bindWarningModal(els.warningModal);
+
+
+
+
 
 function getItemsById() {
     const map = new Map();
@@ -81,8 +84,14 @@ function getSelectedItem() {
 }
 
 function showMessage(text, kind = 'info') {
-    els.messages.textContent = text;
-    els.messages.className = `system-message ${kind}`;
+    const styles = {
+        info: 'color: #8aa1ff',
+        success: 'color: #6ee7a2',
+        warning: 'color: #facc15',
+        error: 'color: #ff6b6b; font-weight: bold'
+    };
+
+    console.log(`%c[MARKET] ${text}`, styles[kind] || styles.info);
 }
 
 function renderMoney() {
@@ -101,7 +110,7 @@ function renderTransportAndCapacity() {
     const state = store.getState();
     const cap = slotsSystem.getCapacity();
     const usage = slotsSystem.getUsage(getItemsById());
-    const backpack = state.player.equipment.backpack?.name ?? 'Sin mochila';
+    const backpack = state.player.equipment.backpack?.name ?? '---';
     const mounts = state.player.transport.mounts.length;
     const vehicles = state.player.transport.vehicles.length;
 
@@ -112,29 +121,27 @@ function renderTransportAndCapacity() {
     els.detailPanel.insertAdjacentHTML('beforeend', `
         <hr class="detail-divider">
 
-        <div class="detail-section detail-inventory">
-            <p class="detail-line">
+        <ul class="detail-list">
+            <li class="detail-line">
                 <span class="label">Mochila equipada</span>
                 <span class="value">${backpack}</span>
-            </p>
-
-            <p class="detail-line">
+            </li>
+            <li class="detail-line highlight">
                 <span class="label">Capacidad</span>
                 <span class="value">${usage.objectUsage}/${cap.objectCapacity}</span>
-            </p>
-
-            <p class="detail-line split">
+            </li>
+            <li class="detail-line">
                 <span><span class="label">Armas ligeras</span> <span class="value">${usage.lightWeapons}</span></span>
                 <span><span class="label">Armas pesadas</span> <span class="value">${usage.heavyWeapons}</span></span>
-            </p>
-
-            <p class="detail-line split">
+            </li>
+            <li class="detail-line">
                 <span><span class="label">Monturas</span> <span class="value">${mounts}</span></span>
                 <span><span class="label">Vehículos</span> <span class="value">${vehicles}</span></span>
-            </p>
-
-            ${vehicleRestriction ? `<p class="detail-warning">${vehicleRestriction}</p>` : ''}
-        </div>
+            </li>
+            <li class="detail-line">
+                ${vehicleRestriction ? `<span class="detail-warning">${vehicleRestriction}</span>` : ''}
+            </li>
+        </ul>
     `);
 }
 
@@ -206,39 +213,35 @@ function renderCurrentDetail() {
     if (state.ui.mode === 'sell') return handleSellDetail(selectedItem);
 
     els.detailPanel.innerHTML = `
-        <div class="item-detail">
+        <hr class="detail-divider">
+
+        <div class="detail-section detail-inventory">
             <header class="item-detail__header">
                 <h2 class="item-detail__title">${selectedItem.name}</h2>
             </header>
 
-            <section class="item-detail__body">
-                <p class="item-detail__description">
-                    ${selectedItem.description ?? 'Sin descripción.'}
-                </p>
-            </section>
+            <p class="item-description">${selectedItem.description ?? 'Sin descripción.'}</p>
 
-            <section class="item-detail__stats">
-                <div class="item-stat">
-                    <span class="item-stat__label">Valor de mercado</span>
-                    <span class="item-stat__value item-stat__value--gold">
+            <ul class="detail-list">
+                <li class="detail-line">
+                    <span class="label">Valor de mercado</span>
+                    <span class="value">
                         ${formatCurrency(economySystem.estimateMarketValue(selectedItem))}
                     </span>
-                </div>
-
-                <div class="item-stat">
-                    <span class="item-stat__label">Acumulable</span>
-                    <span class="item-stat__value">
-                        ${selectedItem.stackable ? 'Sí' : 'No'}
+                </li>
+                <li class="detail-line highlight">
+                    <span class="label">Acumulable</span>
+                    <span class="value">
+                        ${selectedItem.stackable ? 'No' : 'Sí'}
                     </span>
-                </div>
-
-                <div class="item-stat">
-                    <span class="item-stat__label">Tamaño</span>
-                    <span class="item-stat__value">
+                </li>
+                <li class="detail-line">
+                    <span class="label">Tamaño de slot</span>
+                    <span class="value">
                         ${selectedItem.slotSize ?? 1}
                     </span>
-                </div>
-            </section>
+                </li>
+            </ul>
         </div>
     `;
 
@@ -308,6 +311,14 @@ function bindEvents() {
         modal: els.createItemModal,
         openButton: els.createItemBtn,
         onConfirm: (payload, closeModal) => {
+            // DEBUG primero
+            if (!payload.name) console.warn('❌ name vacío');
+            if (!payload.description) console.warn('❌ description vacío');
+            if (payload.quantity <= 0) console.warn('❌ quantity inválida', payload.quantity);
+            if (payload.basePrice <= 0) console.warn('❌ basePrice inválido', payload.basePrice);
+            if (payload.slotSize <= 0) console.warn('❌ slotSize inválido', payload.slotSize);
+
+            // VALIDACIÓN después
             if (!payload.name || !payload.description || payload.quantity <= 0 || payload.basePrice <= 0 || payload.slotSize <= 0) {
                 return showMessage('El ritual de creación falló: revisa los datos del objeto.', 'error');
             }
@@ -323,6 +334,16 @@ function bindEvents() {
 
     bus.on('inventory:changed', () => renderMoney());
 }
+
+
+
+window.addEventListener('error', (event) => {
+    console.error('[MARKET] 💥 ERROR GLOBAL:', event.error);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('[MARKET] 💥 PROMISE NO MANEJADA:', event.reason);
+});
 
 bindEvents();
 renderApp();

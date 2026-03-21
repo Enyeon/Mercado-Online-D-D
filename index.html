@@ -18,7 +18,14 @@
             </div>
 
             <div class="money">
-                <span class="money-icon">💰</span>
+                <span class="money-icon">
+                    <span class="tooltip-icon">
+                        💰
+                        <span class="tooltip-text">
+                            Dinero disponible para gastar o acumular.
+                        </span>
+                    </span>
+                </span>
                 <span class="money-label">Dinero:</span>
                 <span id="player-money" class="money-value"></span>
             </div>
@@ -26,7 +33,7 @@
 
         <main class="layout">
             <section class="left-panel">
-                <select id="market-section" class="market-select">
+                <select id="market-section" class="form-select">
                     <option value="items">Objetos y equipamiento</option>
                     <option value="mounts">Monturas</option>
                     <option value="vehicles">Transporte</option>
@@ -48,16 +55,8 @@
             </aside>
         </main>
 
-        <footer class="footer">
-            <p id="system-message" class="system-message info">
-                Sistema listo.
-            </p>
-        </footer>
 
-        <!-- =========================
-            MODAL CREAR OBJETO
-        ========================= -->
-
+        <!-- ========================= MODAL CREAR OBJETO ========================= -->
         <div id="create-item-modal" class="modal hidden">
             <div class="modal-content">
                 <h3 class="modal-title">Crear objeto manual</h3>
@@ -65,7 +64,7 @@
                 <form class="modal-form">
                     <label class="form-group">
                         <span class="form-label">Nombre</span>
-                        <input class="form-input" name="name" required />
+                        <input class="form-input name-objet" name="name-objet" required />
                     </label>
 
                     <label class="form-group">
@@ -95,12 +94,20 @@
 
                     <label class="toggle-line">
                         <input name="stackable" type="checkbox" />
-                        <span>Este objeto es acumulable</span>
+                        <span class="form-label">Este objeto es acumulable</span>
                     </label>
 
                     <label class="form-group">
-                        <span class="form-label">Tamaño de slot</span>
-                        <input class="form-input" name="slotSize" type="number" min="1" value="1" required />
+                        <span class="form-label">
+                            Tamaño del slot
+                            <span class="tooltip-icon">
+                                ⓘ
+                                <span class="tooltip-text">
+                                    Puede ocupar 1, 2, hasta 4 espacios en tu Inventario.
+                                </span>
+                            </span>
+                        </span>
+                        <input class="form-input" name="slotSize" type="number" min="1" max="4" value="1" required />
                     </label>
 
                     <div class="modal-actions">
@@ -111,13 +118,10 @@
             </div>
         </div>
 
-        <!-- =========================
-            MODAL WARNING
-        ========================= -->
 
+        <!-- =========================== MODAL  WARNING =========================== -->
         <div id="warning-modal" class="modal hidden">
             <div class="modal-content warning-skin">
-
                 <h3 id="warning-title" class="modal-title">
                     Aviso del Mercado
                 </h3>
@@ -132,7 +136,6 @@
                         Aceptar riesgo
                     </button>
                 </div>
-
             </div>
         </div>
 

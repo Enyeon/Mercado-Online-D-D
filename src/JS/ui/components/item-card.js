@@ -7,7 +7,6 @@
 
 
 
-import { getRarityLabel } from '../../utils/formatters.js';
 import { createRarityDots } from './rarity-dots.js';
 
 export function createItemCard({ item, quantity, mode, onSelect }) {
@@ -17,13 +16,7 @@ export function createItemCard({ item, quantity, mode, onSelect }) {
         <header class="item-header">
             <h3 class="item-name">${item.name}</h3>
             <div class="rarity-anchor"></div>
-            <span class="badge rarity-badge">${getRarityLabel(item.rarity)}</span>
         </header>
-
-        <div class="item-meta">
-            <p class="item-type">${item.type}</p>
-            <p class="item-kind">${item.entityKind}</p>
-        </div>
 
         <div class="item-footer">
             ${
@@ -31,6 +24,11 @@ export function createItemCard({ item, quantity, mode, onSelect }) {
                 ? `<p class="item-stock">Stock: <strong>${item.stock}</strong></p>`
                 : `<p class="item-quantity">Cantidad: <strong>${quantity ?? 0}</strong></p>`
             }
+        </div>
+
+        <div class="item-meta">
+            <span class="item-type">${item.type}</span>
+            <span class="item-kind">${item.entityKind}</span>
         </div>
     `;
 

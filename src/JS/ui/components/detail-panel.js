@@ -17,25 +17,126 @@ export function renderDetailPlaceholder(container, text = 'Selecciona un objeto 
     container.innerHTML = `<div class="detail-placeholder">${text}</div>`;
 }
 
+function renderBackpackStats(item) {
+    return `
+        <hr class="detail-divider">
+        <label class="item-description">Capacidad</label>
+        <ul class="detail-list">
+            <li class="detail-line">
+                <span class="label">Objetos</span>
+                <strong class="value">+${item.objectSlots}</strong>
+            </li>
+            <li class="detail-line">
+                <span class="label">Armas</span>
+                <strong class="value">+${item.weaponSlots}</strong>
+            </li>
+        </ul>
+    `;
+}
+
+function renderMountStats(item) {
+    return `
+        <hr class="detail-divider">
+        <label class="item-description">Stats de Montura</label>
+        <ul class="detail-list">
+            <li class="detail-line">
+                <span class="label">Velocidad</span>
+                <strong class="value">${item.stats.speed}</strong>
+            </li>
+            <li class="detail-line">
+                <span class="label">Resistencia</span>
+                <strong class="value">${item.stats.resistance}</strong>
+            </li>
+            <li class="detail-line">
+                <span class="label">
+                    <span class="tooltip-icon">
+                        ⓘ
+                        <span class="tooltip-text">
+                            Control (1–10): 1 = Agresivo, 10 = Manso
+                        </span>
+                    </span>
+                    Control
+                </span>
+                <strong class="value">${item.stats.control}</strong>
+            </li>
+        </ul>
+    `;
+}
+
+function renderVehicleStats(item) {
+    return `
+        <hr class="detail-divider">
+        <label class="item-description">Almacenamiento</label>
+        <ul class="detail-list">
+            <li class="detail-line">
+                <span class="label">Objetos</span>
+                <strong class="value">${item.storage.objectSlots}</strong>
+            </li>
+            <li class="detail-line">
+                <span class="label">Armas</span>
+                <strong class="value">${item.storage.weaponSlots}</strong>
+            </li>
+        </ul>
+    `;
+}
+
+function renderExtraSection(item) {
+    switch (item.entityKind) {
+        case 'backpack':
+            return renderBackpackStats(item);
+
+        case 'mount':
+            return renderMountStats(item);
+
+        case 'vehicle':
+            return renderVehicleStats(item);
+
+        default:
+            return '';
+    }
+}
+
 export function renderBuyDetail({ container, item, estimatedPrice, onBuy }) {
     const extra = [];
-    if (item.entityKind === 'backpack') extra.push(`Capacidad +${item.objectSlots} objetos / +${item.weaponSlots} armas`);
-    if (item.entityKind === 'mount') extra.push(`Stats: Vel ${item.stats.speed}, Res ${item.stats.resistance}, Ctrl ${item.stats.control}`);
-    if (item.entityKind === 'vehicle') extra.push(`Almacenamiento: ${item.storage.objectSlots} obj / ${item.storage.weaponSlots} armas`);
+    const maxStock = Number.isFinite(item.stock) ? item.stock : null;
+
+    if (item.entityKind === 'backpack') {
+        extra.push({
+            label: 'Capacidad',
+            value: `+${item.objectSlots} objetos | +${item.weaponSlots} armas`
+        });
+    }
+
+    if (item.entityKind === 'mount') {
+        extra.push({
+            label1: 'Velocidad',
+            label2: 'Resistencia',
+            label3: 'Control',
+            value1: `${item.stats.speed}`,
+            value2: `${item.stats.resistance}`,
+            value3: `${item.stats.control}`,
+        });
+    }
+
+    if (item.entityKind === 'vehicle') {
+        extra.push({
+            label: 'Almacenamiento',
+            value: `${item.storage.objectSlots} obj / ${item.storage.weaponSlots} armas`
+        });
+    }
 
     container.innerHTML = `
-        <div class="detail-header rarity-${item.rarity}">
+        <header class="mite-header rarity-${item.rarity}">
             <h2 class="item-title">${item.name}</h2>
             <div class="detail-rarity"></div>
-            <span class="badge rarity-badge">${getRarityLabel(item.rarity)}</span>
-        </div>
+        </header>
 
         <p class="item-description">${item.description ?? 'Sin descripción.'}</p>
 
         <ul class="detail-list">
             <li class="detail-line">
                 <span class="label">Rareza</span>
-                <strong class="value">${getRarityLabel(item.rarity)}</strong>
+                <strong class="badge rarity-badge rarity-${item.rarity}">${getRarityLabel(item.rarity)}</strong>
             </li>
 
             <li class="detail-line highlight">
@@ -47,15 +148,22 @@ export function renderBuyDetail({ container, item, estimatedPrice, onBuy }) {
                 <span class="label">Stock</span>
                 <strong class="value">${item.stock ?? '∞'}</strong>
             </li>
-
-            ${extra.map((line) => `<li class="detail-extra">${line}</li>`).join('')}
         </ul>
+
+        ${renderExtraSection(item)}
 
         <div class="detail-actions">
             <label for="buy-quantity" class="input-label">Cantidad</label>
-            <input id="buy-quantity" class="input-quantity" type="number" min="1" max="${Math.max(item.stock ?? 1, 1)}" value="1">
+            <input
+                id="buy-quantity"
+                class="form-input"
+                type="number"
+                min="1"
+                ${maxStock ? `max="${maxStock}"` : ''}
+                value="1"
+            >
 
-            <button id="buy-confirm" class="btn-primary btn-buy">Comprar</button>
+            <button id="buy-confirm" class="btn btn-terciary top-btn">Comprar</button>
         </div>
     `;
 
@@ -71,7 +179,6 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
         <div class="detail-header rarity-${item.rarity}">
             <h2 class="item-title">${item.name}</h2>
             <div class="detail-rarity"></div>
-            <span class="badge rarity-badge">${getRarityLabel(item.rarity)}</span>
         </div>
 
         <p class="item-description">${item.description}</p>
@@ -79,7 +186,7 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
         <ul class="detail-list">
             <li class="detail-line">
                 <span class="label">Rareza</span>
-                <strong class="value">${getRarityLabel(item.rarity)}</strong>
+                <span class="badge rarity-badge rarity-${item.rarity}">${getRarityLabel(item.rarity)}</span>
             </li>
 
             <li class="detail-line highlight">
@@ -95,12 +202,12 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
 
         <div class="detail-actions">
             <label for="sell-quantity" class="input-label">Cantidad</label>
-            <input id="sell-quantity" class="input-quantity" type="number" min="1" max="${inventoryQty}" value="1">
+            <input id="sell-quantity" class="form-input" type="number" min="1" max="${inventoryQty}" value="1">
 
             <label for="sell-price" class="input-label">Precio unitario</label>
-            <input id="sell-price" class="input-price" type="number" min="1" value="${estimatedPrice}">
+            <input id="sell-price" class="form-input" type="number" min="1" value="${estimatedPrice}">
 
-            <button id="sell-confirm" class="btn-primary btn-sell">Publicar venta</button>
+            <button id="sell-confirm" class="btn btn-terciary top-btn">Publicar venta</button>
         </div>
     `;
 

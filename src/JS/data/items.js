@@ -9,7 +9,7 @@
 
 import { BACKPACKS, MOUNTS, MOUNT_PACKS, VEHICLES } from './storage-options.js';
 
-export const ITEM_TYPES = ['materiales', 'armas', 'armaduras', 'consumibles', 'artefactos'];
+export const ITEM_TYPES = [ 'Materiales', 'Armas', 'Armaduras', 'Consumibles', 'Artefactos', 'Equipamiento de Monturas', 'Mochilas', 'Vehículos', 'Otros' ];
 
 export const BASE_ITEMS = [
 /*  { id: 'id-ejemplo', // ID único para identificar el objeto.
