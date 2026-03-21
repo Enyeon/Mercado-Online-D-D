@@ -25,22 +25,24 @@ import { renderBuyDetail, renderDetailPlaceholder, renderSellDetail } from './ui
 import { renderInventoryView } from './ui/views/inventory-view.js';
 import { renderMarketView } from './ui/views/market-view.js';
 import { renderSellView } from './ui/views/sell-view.js';
+import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
 
 const bus = new EventBus();
 const store = new StateManager({
     player: {
         money: 0,
         inventory: {
-            'potion-healer': 2
+            'potion-healer': 2,
+            'dagger': 1,
         },
         equipment: { backpack: null },
         transport: { backpacks: [], mounts: [], vehicles: [] },
     },
     ui: {
         mode: 'buy',
-        marketSection: 'items',
+        marketSection: 'all',
         selectedItemId: null,
-        sellFilters: { search: '', type: 'all', rarity: 'all' },
+        marketFilters: structuredClone(DEFAULT_MARKET_FILTERS),
     },
     market: { items: structuredClone(INITIAL_ITEMS) },
 });
@@ -67,9 +69,6 @@ const els = {
 };
 
 const askWarning = bindWarningModal(els.warningModal);
-
-
-
 
 
 function getItemsById() {
@@ -189,12 +188,12 @@ function handleSellDetail(item) {
         inventoryQty,
         estimatedPrice: sellSystem.estimateValue(item),
         onSell: (quantityRaw, customPriceRaw) => {
-        const quantity = asPositiveInt(quantityRaw, 1);
-        const customPrice = asPositiveNumber(customPriceRaw, sellSystem.estimateValue(item));
-        const result = sellSystem.sellItem(item.id, quantity, customPrice);
-        if (!result.ok) return showMessage(result.reason, 'error');
-        showMessage(`Venta realizada por ${formatCurrency(result.totalIncome)}.`, 'success');
-        renderApp();
+            const quantity = asPositiveInt(quantityRaw, 1);
+            const customPrice = asPositiveNumber(customPriceRaw, sellSystem.estimateValue(item));
+            const result = sellSystem.sellItem(item.id, quantity, customPrice);
+            if (!result.ok) return showMessage(result.reason, 'error');
+            showMessage(`Venta realizada por ${formatCurrency(result.totalIncome)}.`, 'success');
+            renderApp();
         },
     });
     renderTransportAndCapacity();
@@ -229,10 +228,14 @@ function renderCurrentDetail() {
                         ${formatCurrency(economySystem.estimateMarketValue(selectedItem))}
                     </span>
                 </li>
+                <li class="detail-line">
+                    <span class="label">Inflación dinámica</span>
+                    <span class="value">x${selectedItem.economy?.inflationFactor ?? 1}</span>
+                </li>
                 <li class="detail-line highlight">
                     <span class="label">Acumulable</span>
                     <span class="value">
-                        ${selectedItem.stackable ? 'No' : 'Sí'}
+                        ${selectedItem.stackable ? 'Sí' : 'No'}
                     </span>
                 </li>
                 <li class="detail-line">
@@ -258,7 +261,7 @@ function renderList() {
     };
 
     if (state.ui.mode === 'buy') {
-        renderMarketView({ container: els.itemList, items: state.market.items, section: state.ui.marketSection, onSelect: selectItem });
+        renderMarketView({ container: els.itemList, items: state.market.items, filters: state.ui.marketFilters, onSelect: selectItem });
     }
 
     if (state.ui.mode === 'inventory') {
@@ -266,7 +269,7 @@ function renderList() {
     }
 
     if (state.ui.mode === 'sell') {
-        renderSellView({ container: els.itemList, inventoryEntries, filters: state.ui.sellFilters, onSelect: selectItem });
+        renderSellView({ container: els.itemList, inventoryEntries, filters: state.ui.marketFilters, onSelect: selectItem });
     }
 }
 
@@ -275,14 +278,22 @@ function renderModeUI() {
     els.modeBuy.classList.toggle('active', mode === 'buy');
     els.modeSell.classList.toggle('active', mode === 'sell');
     els.modeInventory.classList.toggle('active', mode === 'inventory');
-    els.filters.classList.toggle('hidden', mode !== 'sell');
+    els.filters.classList.toggle('hidden', mode === 'inventory');
     els.createItemBtn.classList.toggle('hidden', mode !== 'sell');
-    els.marketSection.classList.toggle('hidden', mode !== 'buy');
+    els.marketSection.classList.add('hidden');
+}
+
+function renderFilterUI() {
+    renderFilters(els.filters, {
+        options: getMarketFilterOptions(store.getState().market.items),
+        filters: store.getState().ui.marketFilters,
+    });
 }
 
 function renderApp() {
     renderMoney();
     renderModeUI();
+    renderFilterUI();
     renderList();
     renderCurrentDetail();
 }
@@ -292,33 +303,21 @@ function bindEvents() {
     els.modeSell.addEventListener('click', () => { setMode('sell'); renderApp(); });
     els.modeInventory.addEventListener('click', () => { setMode('inventory'); renderApp(); });
 
-    els.marketSection.addEventListener('change', (event) => {
-        store.patch({ ui: { ...store.getState().ui, marketSection: event.target.value, selectedItemId: null } });
-        renderApp();
-    });
-
-    renderFilters(els.filters);
     els.filters.addEventListener('input', (event) => {
-        const sellFilters = { ...store.getState().ui.sellFilters };
-        if (event.target.id === 'search-input') sellFilters.search = event.target.value;
-        if (event.target.id === 'type-filter') sellFilters.type = event.target.value;
-        if (event.target.id === 'rarity-filter') sellFilters.rarity = event.target.value;
-        store.patch({ ui: { ...store.getState().ui, sellFilters } });
+        const marketFilters = { ...store.getState().ui.marketFilters };
+        if (event.target.id === 'search-input') marketFilters.search = event.target.value;
+        if (event.target.id === 'type-filter') marketFilters.type = event.target.value;
+        if (event.target.id === 'rarity-filter') marketFilters.rarity = event.target.value;
+        if (event.target.id === 'entity-kind-filter') marketFilters.entityKind = event.target.value;
+        store.patch({ ui: { ...store.getState().ui, marketFilters, selectedItemId: null } });
         renderList();
+        renderCurrentDetail();
     });
 
     bindCreateItemModal({
         modal: els.createItemModal,
         openButton: els.createItemBtn,
         onConfirm: (payload, closeModal) => {
-            // DEBUG primero
-            if (!payload.name) console.warn('❌ name vacío');
-            if (!payload.description) console.warn('❌ description vacío');
-            if (payload.quantity <= 0) console.warn('❌ quantity inválida', payload.quantity);
-            if (payload.basePrice <= 0) console.warn('❌ basePrice inválido', payload.basePrice);
-            if (payload.slotSize <= 0) console.warn('❌ slotSize inválido', payload.slotSize);
-
-            // VALIDACIÓN después
             if (!payload.name || !payload.description || payload.quantity <= 0 || payload.basePrice <= 0 || payload.slotSize <= 0) {
                 return showMessage('El ritual de creación falló: revisa los datos del objeto.', 'error');
             }
@@ -334,7 +333,6 @@ function bindEvents() {
 
     bus.on('inventory:changed', () => renderMoney());
 }
-
 
 
 window.addEventListener('error', (event) => {

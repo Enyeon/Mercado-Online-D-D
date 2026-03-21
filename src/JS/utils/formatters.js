@@ -10,7 +10,7 @@
 import { ITEM_RARITIES } from '../data/item-rarities.js';
 
 export function formatCurrency(value) {
-    return `${value.toLocaleString('es-ES')} oro`;
+    return `${value.toLocaleString('es-ES')} Oro`;
 }
 
 export function getRarityLabel(rarityId) {

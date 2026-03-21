@@ -47,7 +47,8 @@ export class MarketSystem {
         if (!item) return { ok: false, reason: 'Entrada no encontrada.' };
         if ((item.stock ?? 1) < quantity) return { ok: false, reason: 'No hay stock suficiente.' };
 
-        const totalCost = quantity * this.economySystem.estimateMarketValue(item);
+        const unitPrice = this.economySystem.estimateMarketValue(item);
+        const totalCost = quantity * unitPrice;
         if (!this.economySystem.canAfford(state.player.money, totalCost)) return { ok: false, reason: 'No tienes suficiente dinero.' };
 
         if (item.entityKind === 'item' || item.entityKind === 'mountPack') {
@@ -58,6 +59,7 @@ export class MarketSystem {
         this.store.update((draft) => {
             const draftItem = draft.market.items.find((entry) => entry.id === itemId);
             if (typeof draftItem.stock === 'number') draftItem.stock -= quantity;
+            draftItem.economy = this.economySystem.applyTransaction(draftItem, 'buy', quantity);
             draft.player.money -= totalCost;
             return draft;
         });
@@ -66,7 +68,7 @@ export class MarketSystem {
         if (item.entityKind === 'mount') this.transportSystem.purchaseMount(item);
         if (item.entityKind === 'vehicle') this.transportSystem.purchaseVehicle(item);
 
-        this.bus.emit('market:bought', { itemId, quantity, totalCost });
-        return { ok: true, totalCost };
+        this.bus.emit('market:bought', { itemId, quantity, totalCost, unitPrice });
+        return { ok: true, totalCost, unitPrice };
     }
 }

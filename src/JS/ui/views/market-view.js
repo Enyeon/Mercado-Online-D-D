@@ -8,13 +8,14 @@
 
 
 import { createItemCard } from '../components/item-card.js';
+import { filterAndSortMarketItems } from '../../utils/market-filters.js';
 
-export function renderMarketView({ container, items, section, onSelect }) {
+export function renderMarketView({ container, items, filters, onSelect }) {
     container.innerHTML = '';
-    const filtered = items.filter((item) => item.marketSection === section);
+    const filtered = filterAndSortMarketItems(items, filters);
 
     if (!filtered.length) {
-        container.innerHTML = '<p class="empty-state">No hay entradas disponibles.</p>';
+        container.innerHTML = '<p class="empty-state">No hay entradas disponibles con esos filtros.</p>';
         return;
     }
 

@@ -7,6 +7,17 @@
 
 
 
+export const RARITY_ORDER = [
+    'common',
+    'uncommon',
+    'rare',
+    'veryRare',
+    'epic',
+    'mythic',
+    'legendary',
+    'unique',
+];
+
 export const ITEM_RARITIES = {
     common: {
         label: 'Común',
@@ -58,4 +69,4 @@ export const ITEM_RARITIES = {
     },
 };
 
-export const RARITY_OPTIONS = Object.entries(ITEM_RARITIES).map(([id, data]) => ({ id, ...data }));
+export const RARITY_OPTIONS = RARITY_ORDER.map((id) => ({ id, ...ITEM_RARITIES[id] }));
