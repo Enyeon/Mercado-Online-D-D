@@ -406,7 +406,6 @@ body {
 .rarity-rare { --rarity: #4d8dff; }
 .rarity-veryRare { --rarity: #a66bff; }
 .rarity-epic { --rarity: #d957ff; }
-.rarity-mythic { --rarity: #ff3df0; }
 .rarity-legendary { --rarity: #f7c948; }
 .rarity-unique { --rarity: #ff3b3b; }
 
@@ -1003,4 +1002,81 @@ body {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
+}
+
+
+
+
+.trade-panel {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px;
+    background: linear-gradient(180deg, #181d28, #12161f);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.trade-panel__title,
+.inventory-section-title {
+    margin: 0;
+    color: var(--gold-strong);
+    font-size: 1rem;
+}
+
+.trade-panel__actions,
+.inventory-backpack-section,
+.inventory-item-section,
+.detail-actions {
+    display: grid;
+    gap: 10px;
+}
+
+.trade-panel__textarea {
+    min-height: 120px;
+    resize: vertical;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    padding: 10px;
+    background: #0f131b;
+    color: var(--text-main);
+}
+
+.trade-panel__feedback {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.trade-panel__feedback[data-kind='success'] {
+    color: #6ee7a2;
+}
+
+.trade-panel__feedback[data-kind='error'] {
+    color: #ff6b6b;
+}
+
+.item-card--special {
+    border-color: #c8a96a66;
+}
+
+.item-card--overflow {
+    opacity: 0.72;
+    filter: saturate(0.8);
+}
+
+.item-status {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.item-status.active {
+    color: #6ee7a2;
+}
+
+.item-status.warning {
+    color: #facc15;
+}
+
+.item-status.neutral {
+    color: var(--text-muted);
 }

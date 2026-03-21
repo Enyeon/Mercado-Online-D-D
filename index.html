@@ -45,6 +45,17 @@
                     Crear objeto manual
                 </button>
 
+                <section id="trade-panel" class="trade-panel hidden">
+                    <h2 class="trade-panel__title">Compartir ítems</h2>
+                    <div class="trade-panel__actions">
+                        <button class="btn btn-secondary" type="button" data-export-all>Exportar inventario</button>
+                        <button class="btn btn-secondary" type="button" data-export-selected>Exportar selección</button>
+                    </div>
+                    <textarea class="trade-panel__textarea" data-trade-payload placeholder="Pega aquí el JSON exportado para importar ítems"></textarea>
+                    <button class="btn btn-primary" type="button" data-import-items>Importar ítems</button>
+                    <p class="trade-panel__feedback" data-trade-feedback></p>
+                </section>
+
                 <div id="item-list" class="item-list"></div>
             </section>
 

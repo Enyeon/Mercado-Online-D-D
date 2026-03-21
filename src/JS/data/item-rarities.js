@@ -13,7 +13,6 @@ export const RARITY_ORDER = [
     'rare',
     'veryRare',
     'epic',
-    'mythic',
     'legendary',
     'unique',
 ];
@@ -45,19 +44,13 @@ export const ITEM_RARITIES = {
     },
     epic: {
         label: 'Épico',
-        multiplier: 2.5,
+        multiplier: 3.2,
         color: '#d957ff',
         glow: '0 0 14px #d957ffaa'
     },
-    mythic: {
-        label: 'Mítico',
-        multiplier: 4.4,
-        color: '#ff3df0',
-        glow: '0 0 18px #ff3df0cc'
-    },
     legendary: {
         label: 'Legendario',
-        multiplier: 3.2,
+        multiplier: 4.4,
         color: '#f7c948',
         glow: '0 0 16px #f7c948cc'
     },
