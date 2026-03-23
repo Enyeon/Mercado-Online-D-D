@@ -8,24 +8,19 @@
 
 
 import { createItemCard } from '../components/item-card.js';
+import { createSectionedItemList } from '../../utils/sectioned-item-list.js';
+import { setListContainerLayout } from '../../utils/list-container.js';
 
-function createSection(title) {
-    const section = document.createElement('div');
-    section.className = 'inventory-section';
 
-    const heading = document.createElement('h3');
-    heading.className = 'inventory-section-title';
-    heading.textContent = title;
-
-    section.appendChild(heading);
-
-    return { section, content: section };
-}
 
 export function renderInventoryView({ container, inventoryEntries, onSelect }) {
+    console.log('--- RENDER INVENTORY ---');
+
+    setListContainerLayout(container, 'inventory-sections');
     container.innerHTML = '';
 
     const { backpack, visibleItems, overflowItems } = inventoryEntries;
+    console.log('VISIBLE ITEMS RAW:', visibleItems);
 
     if (!backpack && !visibleItems.length && !overflowItems.length) {
         container.innerHTML = '<p class="empty-state">Inventario vacío.</p>';
@@ -35,9 +30,9 @@ export function renderInventoryView({ container, inventoryEntries, onSelect }) {
     const fragment = document.createDocumentFragment();
 
     if (backpack) {
-        const { section, content } = createSection('Mochila equipada');
+        const { section, list } = createSectionedItemList({ title: 'Mochila equipada' });
 
-        content.appendChild(
+        list.appendChild(
             createItemCard({
                 item: backpack,
                 quantity: 1,
@@ -51,10 +46,10 @@ export function renderInventoryView({ container, inventoryEntries, onSelect }) {
     }
 
     if (visibleItems.length) {
-        const { section, content } = createSection('Objetos activos');
+        const { section, list } = createSectionedItemList({ title: 'Objetos activos' });
 
         visibleItems.forEach(({ item, quantity }) => {
-            content.appendChild(
+            list.appendChild(
                 createItemCard({ item, quantity, mode: 'inventory', onSelect })
             );
         });
@@ -63,10 +58,10 @@ export function renderInventoryView({ container, inventoryEntries, onSelect }) {
     }
 
     if (overflowItems.length) {
-        const { section, content } = createSection('Overflow / inactivos');
+        const { section, list } = createSectionedItemList({ title: 'Overflow / inactivos' });
 
         overflowItems.forEach(({ item, quantity }) => {
-            content.appendChild(
+            list.appendChild(
                 createItemCard({
                     item,
                     quantity,
@@ -82,4 +77,11 @@ export function renderInventoryView({ container, inventoryEntries, onSelect }) {
     }
 
     container.appendChild(fragment);
+
+    console.group('[inventory] DOM result');
+    console.log('sections', container.querySelectorAll('.inventory-section').length);
+    console.log('titles', container.querySelectorAll('.inventory-section-title').length);
+    console.log('cards', container.querySelectorAll('.item-card').length);
+    console.log('all direct children', [...container.children].map((node) => node.className || node.tagName));
+    console.groupEnd();
 }

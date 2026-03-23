@@ -9,8 +9,11 @@
 
 import { createItemCard } from '../components/item-card.js';
 import { filterAndSortMarketItems } from '../../utils/market-filters.js';
+import { setListContainerLayout } from '../../utils/list-container.js';
 
 export function renderSellView({ container, inventoryEntries, filters, onSelect }) {
+    setListContainerLayout(container, 'item-list');
+
     const activeEntries = inventoryEntries.visibleItems;
     const filteredEntries = filterAndSortMarketItems(
         activeEntries.map(({ item }) => item),
@@ -31,4 +34,7 @@ export function renderSellView({ container, inventoryEntries, filters, onSelect 
     });
 
     container.appendChild(fragment);
+
+    console.log([...container.children].map(el => el.className));
+    console.log('[SELL] cards', container.querySelectorAll('.item-card').length);
 }

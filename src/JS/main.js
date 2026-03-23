@@ -331,6 +331,7 @@ function renderCurrentDetail() {
 
 function renderList() {
     const state = store.getState();
+    console.log('INVENTORY STATE:', state.player.inventory);
     const itemsById = getItemsById();
     const inventoryEntries = inventorySystem.getGroupedInventory(itemsById);
     const selectItem = (item) => {
@@ -348,6 +349,17 @@ function renderList() {
 
     if (state.ui.mode === 'sell') {
         renderSellView({ container: els.itemList, inventoryEntries, filters: state.ui.marketFilters, onSelect: selectItem });
+    }
+
+    if (state.ui.mode === 'inventory') {
+        console.group('[inventory] renderList');
+        console.log('mode', state.ui.mode);
+        console.log('inventory raw', store.getState().player.inventory);
+        console.log('inventory order', store.getState().player.inventoryOrder);
+        console.log('equipped backpack', store.getState().player.equipment.backpack?.id ?? null);
+        console.log('grouped visible', inventoryEntries.visibleItems.map(({ item, quantity }) => ({ id: item.id, quantity })));
+        console.log('grouped overflow', inventoryEntries.overflowItems.map(({ item, quantity }) => ({ id: item.id, quantity })));
+        console.groupEnd();
     }
 }
 

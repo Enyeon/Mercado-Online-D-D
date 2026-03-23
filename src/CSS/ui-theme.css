@@ -328,11 +328,41 @@ body {
 
 
 /* ========================= ITEM LIST ========================= */
-.item-list {
+.inventory-sections, .item-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
-    gap: 14px;
+    gap: 18px;
 }
+
+.inventory-section {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 10px;
+}
+
+.inventory-section-title {
+    margin: 0 0 10px;
+    font-size: 0.85rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.inventory-section-title::before, .inventory-section-title::after {
+    content: "";
+    flex: 1;
+    height: 4px;
+}
+.inventory-section-title::before {
+    background: linear-gradient(-90deg, #c8a96a55, transparent);
+}
+.inventory-section-title::after {
+    background: linear-gradient(90deg, #c8a96a55, transparent);
+}
+
 
 
 /* ========================= ITEM CARD (CORE VISUAL) ========================= */
@@ -1159,27 +1189,3 @@ body {
 }
 
 
-.inventory-section-title {
-    margin: 0 0 10px;
-    font-size: 0.85rem;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-
-    /* opcional: línea decorativa */
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.inventory-section-title::before {
-    content: "";
-    flex: 1;
-    height: 2px;
-    background: linear-gradient(-90deg, #c8a96a55, transparent);
-}
-.inventory-section-title::after {
-    content: "";
-    flex: 1;
-    height: 2px;
-    background: linear-gradient(90deg, #c8a96a55, transparent);
-}
