@@ -9,9 +9,9 @@
 
 import { createRarityDots } from './rarity-dots.js';
 
-export function createItemCard({ item, quantity, mode, onSelect }) {
+export function createItemCard({ item, quantity, mode, onSelect, inactive = false, badge = '' }) {
     const card = document.createElement('article');
-    card.className = `item-card rarity-${item.rarity}`;
+    card.className = `item-card rarity-${item.rarity}${inactive ? ' is-inactive' : ''}`;
     card.innerHTML = `
         <header class="item-header">
             <h3 class="item-name">${item.name}</h3>
@@ -24,6 +24,7 @@ export function createItemCard({ item, quantity, mode, onSelect }) {
                 ? `<p class="item-stock">Stock: <strong>${item.stock}</strong></p>`
                 : `<p class="item-quantity">Cantidad: <strong>${quantity ?? 0}</strong></p>`
             }
+            ${badge ? `<p class="item-state">${badge}</p>` : ''}
         </div>
 
         <div class="item-meta">
@@ -33,6 +34,6 @@ export function createItemCard({ item, quantity, mode, onSelect }) {
     `;
 
     card.querySelector('.rarity-anchor').appendChild(createRarityDots(item.rarity));
-    card.addEventListener('click', () => onSelect(item));
+    card.addEventListener('click', () => onSelect(item, { inactive }));
     return card;
 }

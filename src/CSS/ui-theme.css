@@ -979,6 +979,66 @@ body {
 }
 
 
+/* ========================= TRADE MODAL FIX ========================= */
+/* contenedor interno */
+.trade-modal {
+    width: min(520px, 92vw);
+}
+
+/* título */
+.trade-panel__title {
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+/* texto descriptivo */
+.modal-text {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* acciones más equilibradas */
+.trade-panel__actions {
+    grid-template-columns: 1fr;
+}
+
+/* textarea más “pro” */
+.trade-panel__textarea {
+    min-height: 140px;
+    font-family: monospace;
+    letter-spacing: .03em;
+
+    border-radius: 12px;
+    padding: 12px;
+
+    transition: all .2s ease;
+}
+
+/* focus elegante */
+.trade-panel__textarea:focus {
+    outline: none;
+    border-color: #6ee7a2;
+    box-shadow:
+        0 0 0 2px #6ee7a233,
+        0 0 12px #6ee7a222;
+}
+
+/* botón importar separado */
+.trade-panel__textarea + .btn-primary {
+    margin-top: 6px;
+}
+
+/* feedback más visible */
+.trade-panel__feedback {
+    text-align: center;
+    font-size: 0.85rem;
+    min-height: 20px;
+    margin-top: 6px;
+}
+
+
 /* ========================= SYSTEM MESSAGE ========================= */
 .system-message {
     padding: 8px 20px;
@@ -1007,6 +1067,13 @@ body {
 
 
 
+
+
+
+
+
+
+
 .trade-panel {
     display: grid;
     gap: 10px;
@@ -1017,8 +1084,7 @@ body {
     border-radius: 12px;
 }
 
-.trade-panel__title,
-.inventory-section-title {
+.trade-panel__title {
     margin: 0;
     color: var(--gold-strong);
     font-size: 1rem;
@@ -1079,4 +1145,41 @@ body {
 
 .item-status.neutral {
     color: var(--text-muted);
+}
+
+.item-card.is-inactive {
+    opacity: 0.72;
+    filter: saturate(0.8);
+}
+
+.item-state {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+
+.inventory-section-title {
+    margin: 0 0 10px;
+    font-size: 0.85rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+
+    /* opcional: línea decorativa */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.inventory-section-title::before {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(-90deg, #c8a96a55, transparent);
+}
+.inventory-section-title::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, #c8a96a55, transparent);
 }

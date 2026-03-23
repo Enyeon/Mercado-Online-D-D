@@ -7,6 +7,8 @@
 
 
 
+import { BASE_OBJECT_CAPACITY, countUsageByType, partitionInventory } from '../inventory.js';
+
 export class InventorySlotsSystem {
     constructor(store) {
         this.store = store;
@@ -17,10 +19,7 @@ export class InventorySlotsSystem {
         const equippedBackpack = backpackOverride ?? state.player.equipment.backpack;
 
         return {
-            objectCapacity: 4 + (equippedBackpack?.objectSlots ?? 0),
-            lateralLightSlots: 2,
-            backSlot: equippedBackpack ? 0 : 1,
-            extraWeaponSlots: equippedBackpack?.weaponSlots ?? 0,
+            objectCapacity: BASE_OBJECT_CAPACITY + (equippedBackpack?.objectSlots ?? 0),
         };
     }
 
@@ -31,60 +30,47 @@ export class InventorySlotsSystem {
     }
 
     getUsage(itemsById) {
-        const state = this.store.getState();
-        const inventory = state.player.inventory;
-
-        let objectUsage = 0;
-        let lightWeapons = 0;
-        let heavyWeapons = 0;
-
-        for (const [itemId, quantity] of Object.entries(inventory)) {
-            if (quantity <= 0) continue;
-
-            const item = itemsById.get(itemId);
-            if (!item) continue;
-
-            if (item.type === 'weapon') {
-                if (item.weaponType === 'light') {
-                    lightWeapons += quantity;
-                } else if (item.weaponType === 'heavy') {
-                    heavyWeapons += quantity;
-                }
-                continue;
-            }
-
-            const slotSize = item.slotSize ?? 1;
-
-            objectUsage += slotSize;
-        }
-
-        return { objectUsage, lightWeapons, heavyWeapons };
+        return countUsageByType(this.store.getState().player.inventory, itemsById);
     }
 
     canStore(item, quantity, itemsById) {
         const state = this.store.getState();
-        const nextInventory = { ...state.player.inventory };
-        nextInventory[item.id] = (nextInventory[item.id] ?? 0) + quantity;
+        const nextInventory = structuredClone(state.player.inventory);
+        const previous = nextInventory[item.id]?.quantity ?? 0;
+        nextInventory[item.id] = {
+            ...(nextInventory[item.id] ?? {}),
+            quantity: previous + quantity,
+        };
 
         const capacity = this.getCapacity();
-        const usage = this.getUsage(itemsById, nextInventory);
-
-        if (item.type !== 'armas') {
-            return {
-                ok: usage.objectUsage <= capacity.objectCapacity,
-                reason: `Espacio ocupado ${usage.objectUsage}/${capacity.objectCapacity}`,
-            };
-        }
-
-        const canFitLateralLight = Math.min(usage.lightWeapons, capacity.lateralLightSlots);
-        const remainingLight = Math.max(0, usage.lightWeapons - canFitLateralLight);
-        const backUsage = Math.min(capacity.backSlot, usage.heavyWeapons + remainingLight);
-        const overflowToExtra = (usage.heavyWeapons + remainingLight) - backUsage;
+        const usage = countUsageByType(nextInventory, itemsById);
 
         return {
-            ok: overflowToExtra <= capacity.extraWeaponSlots,
-            reason: `Armas exceden ranuras disponibles.`,
+            ok: usage.objectUsage <= capacity.objectCapacity,
+            reason: `Espacio ocupado ${usage.objectUsage} / ${capacity.objectCapacity}`,
         };
+    }
+
+    getInventoryLayout(itemsById, backpackOverride = null) {
+        const state = this.store.getState();
+        return partitionInventory({
+            inventory: state.player.inventory,
+            order: state.player.inventoryOrder ?? [],
+            itemsById,
+            capacity: this.getCapacity(backpackOverride).objectCapacity,
+        });
+    }
+
+    refreshOverflow(itemsById) {
+        const layout = this.getInventoryLayout(itemsById);
+        this.store.update((draft) => {
+            draft.player.overflowItemIds = layout.overflowEntries.map(({ item }) => item.id);
+            for (const [itemId, record] of Object.entries(draft.player.inventory)) {
+                record.hidden = draft.player.overflowItemIds.includes(itemId);
+            }
+            return draft;
+        });
+        return layout;
     }
 
     getBackpackSwapRisk(newBackpack, itemsById) {
@@ -93,15 +79,10 @@ export class InventorySlotsSystem {
         const usage = this.getUsage(itemsById);
 
         const objectOverflow = Math.max(0, usage.objectUsage - nextCapacity.objectCapacity);
-        const currentWeaponCap = currentCapacity.lateralLightSlots + currentCapacity.backSlot + currentCapacity.extraWeaponSlots;
-        const nextWeaponCap = nextCapacity.lateralLightSlots + nextCapacity.backSlot + nextCapacity.extraWeaponSlots;
-        const currentWeaponUsage = usage.lightWeapons + usage.heavyWeapons;
-        const weaponOverflow = Math.max(0, currentWeaponUsage - nextWeaponCap);
 
         return {
-            hasRisk: objectOverflow > 0 || weaponOverflow > 0 || nextWeaponCap < currentWeaponCap || nextCapacity.objectCapacity < currentCapacity.objectCapacity,
+            hasRisk: objectOverflow > 0 || nextCapacity.objectCapacity < currentCapacity.objectCapacity,
             objectOverflow,
-            weaponOverflow,
             nextCapacity,
         };
     }

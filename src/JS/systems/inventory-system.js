@@ -7,11 +7,18 @@
 
 
 
+import { ensureInventoryOrder, getItemQuantity, mergeInventoryItem, normalizeInventoryMap, setItemQuantity } from '../inventory.js';
+
 export class InventorySystem {
     constructor(store, bus, slotsSystem) {
         this.store = store;
         this.bus = bus;
         this.slotsSystem = slotsSystem;
+    }
+
+    emitInventoryChanged(itemsById) {
+        if (itemsById) this.slotsSystem.refreshOverflow(itemsById);
+        this.bus.emit('inventory:changed', this.store.getState().player.inventory);
     }
 
     addItem(itemId, quantity, itemsById) {
@@ -24,36 +31,40 @@ export class InventorySystem {
         }
 
         this.store.update((state) => {
-            const previous = state.player.inventory[itemId] ?? 0;
-            state.player.inventory[itemId] = previous + quantity;
+            state.player.inventory = normalizeInventoryMap(state.player.inventory);
+            state.player.inventoryOrder = ensureInventoryOrder(state.player.inventoryOrder ?? [], state.player.inventory);
+            mergeInventoryItem({ inventory: state.player.inventory, order: state.player.inventoryOrder, item, quantity });
             return state;
         });
 
-        this.bus.emit('inventory:changed', this.store.getState().player.inventory);
+        this.emitInventoryChanged(itemsById);
         return { ok: true };
     }
 
-    removeItem(itemId, quantity) {
+    removeItem(itemId, quantity, itemsById) {
         let removed = false;
 
         this.store.update((state) => {
-            const previous = state.player.inventory[itemId] ?? 0;
+            state.player.inventory = normalizeInventoryMap(state.player.inventory);
+            const previous = getItemQuantity(state.player.inventory, itemId);
             if (previous < quantity) return state;
-            const remaining = previous - quantity;
-            if (remaining <= 0) delete state.player.inventory[itemId];
-            else state.player.inventory[itemId] = remaining;
+            setItemQuantity(state.player.inventory, itemId, previous - quantity);
+            state.player.inventoryOrder = ensureInventoryOrder((state.player.inventoryOrder ?? []).filter((entryId) => entryId !== itemId || state.player.inventory[itemId]), state.player.inventory);
             removed = true;
             return state;
         });
 
-        if (removed) this.bus.emit('inventory:changed', this.store.getState().player.inventory);
+        if (removed) this.emitInventoryChanged(itemsById);
         return removed;
     }
 
     getGroupedInventory(itemsById) {
-        const { inventory } = this.store.getState().player;
-        return Object.entries(inventory)
-        .map(([itemId, quantity]) => ({ item: itemsById.get(itemId), quantity }))
-        .filter((entry) => Boolean(entry.item));
+        const layout = this.slotsSystem.getInventoryLayout(itemsById);
+        const equippedBackpack = this.store.getState().player.equipment.backpack;
+        return {
+            backpack: equippedBackpack,
+            visibleItems: layout.visibleEntries,
+            overflowItems: layout.overflowEntries,
+        };
     }
 }

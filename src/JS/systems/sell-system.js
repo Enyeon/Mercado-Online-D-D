@@ -24,14 +24,14 @@ export class SellSystem {
     sellItem(itemId, quantity, customPrice) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
-        const hasInventory = (state.player.inventory[itemId] ?? 0) >= quantity;
+        const hasInventory = (state.player.inventory[itemId]?.quantity ?? 0) >= quantity;
         if (!item) return { ok: false, reason: 'Ítem no encontrado.' };
         if (!hasInventory) return { ok: false, reason: 'No tienes suficientes unidades.' };
 
         const requestedPrice = asPositiveNumber(customPrice, this.estimateValue(item));
         const unitPrice = this.economySystem.clampPrice(item, requestedPrice, { log: true, reason: 'venta manual fuera de rango' });
         const totalIncome = Math.round(unitPrice * quantity);
-        const removed = this.inventorySystem.removeItem(itemId, quantity);
+        const removed = this.inventorySystem.removeItem(itemId, quantity, new Map(state.market.items.map((entry) => [entry.id, entry])));
         if (!removed) return { ok: false, reason: 'No se pudo vender el ítem.' };
 
         this.store.update((draft) => {

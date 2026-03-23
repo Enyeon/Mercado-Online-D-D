@@ -41,21 +41,17 @@
 
                 <div id="filters" class="filters hidden"></div>
 
-                <button id="create-item-btn" class="btn btn-create hidden">
-                    Crear objeto manual
-                </button>
+                <div class="inventory-toolbar">
+                    <button id="toggle-trade" class="btn btn-secondary">
+                        Intercambiar
+                    </button>
 
-                <section id="trade-panel" class="trade-panel hidden">
-                    <h2 class="trade-panel__title">Compartir ítems</h2>
-                    <div class="trade-panel__actions">
-                        <button class="btn btn-secondary" type="button" data-export-all>Exportar inventario</button>
-                        <button class="btn btn-secondary" type="button" data-export-selected>Exportar selección</button>
-                    </div>
-                    <textarea class="trade-panel__textarea" data-trade-payload placeholder="Pega aquí el JSON exportado para importar ítems"></textarea>
-                    <button class="btn btn-primary" type="button" data-import-items>Importar ítems</button>
-                    <p class="trade-panel__feedback" data-trade-feedback></p>
-                </section>
+                    <button id="create-item-btn" class="btn btn-create hidden">
+                        Crear objeto manual
+                    </button>
+                </div>
 
+                <div id="list-container"></div>
                 <div id="item-list" class="item-list"></div>
             </section>
 
@@ -67,8 +63,8 @@
         </main>
 
 
-        <!-- ========================= MODAL CREAR OBJETO ========================= -->
-        <div id="create-item-modal" class="modal hidden">
+        <!-- ========================= MODAL  CREAR OBJETO ========================= -->
+        <section id="create-item-modal" class="modal hidden">
             <div class="modal-content">
                 <h3 class="modal-title">Crear objeto manual</h3>
 
@@ -127,10 +123,10 @@
                     </div>
                 </form>
             </div>
-        </div>
+        </section>
 
 
-        <!-- =========================== MODAL  WARNING =========================== -->
+        <!-- =========================== MODAL   WARNING =========================== -->
         <div id="warning-modal" class="modal hidden">
             <div class="modal-content warning-skin">
                 <h3 id="warning-title" class="modal-title">
@@ -149,6 +145,53 @@
                 </div>
             </div>
         </div>
+
+
+        <!-- =========================== MODAL COMPARTIR =========================== -->
+        <section id="trade-panel" class="modal hidden">
+            <div class="modal-content trade-modal">
+                <h2 class="trade-panel__title modal-title">
+                    Intercambio Arcano
+                </h2>
+
+                <p class="modal-text">
+                    Exporta o importa reliquias entre aventureros.
+                </p>
+
+                <div class="trade-panel__actions">
+                    <button class="btn btn-secondary" type="button" data-export-all>
+                        Exportar inventario
+                    </button>
+
+                    <button class="btn btn-secondary" type="button" data-export-selected>
+                        Exportar selección
+                    </button>
+
+                    <button class="btn btn-secondary" type="button" data-copy>
+                        Copiar
+                    </button>
+                </div>
+
+                <textarea 
+                    id="area-text"
+                    class="trade-panel__textarea form-textarea"
+                    data-trade-payload
+                    placeholder="Pega aquí el código de intercambio..."
+                ></textarea>
+
+                <button class="btn btn-primary" type="button" data-import-items>
+                    Importar ítems
+                </button>
+
+                <p class="trade-panel__feedback" data-trade-feedback></p>
+
+                <div class="modal-actions">
+                    <button class="btn btn-terciary" data-close-trade>
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </section>
 
 
         <script type="module" src="./src/JS/main.js"></script>

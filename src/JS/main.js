@@ -16,6 +16,9 @@ import { InventorySlotsSystem } from './systems/inventory-slots-system.js';
 import { MarketSystem } from './systems/market-system.js';
 import { SellSystem } from './systems/sell-system.js';
 import { TransportSystem } from './systems/transport-system.js';
+import { StorageService } from './storage.js';
+import { TradeService } from './trade.js';
+import { setTradeFeedback } from './ui.js';
 import { formatCurrency } from './utils/formatters.js';
 import { asPositiveInt, asPositiveNumber } from './utils/validators.js';
 import { bindCreateItemModal } from './ui/components/create-item-modal.js';
@@ -27,16 +30,20 @@ import { renderMarketView } from './ui/views/market-view.js';
 import { renderSellView } from './ui/views/sell-view.js';
 import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
 
-const bus = new EventBus();
-const store = new StateManager({
+const storageService = new StorageService();
+const persistedState = storageService.load();
+
+const initialState = {
     player: {
-        money: 0,
-        inventory: {
-            'potion-healer': 2,
-            'dagger': 1,
+        money: persistedState?.gold ?? 10,
+        inventory: persistedState?.player?.inventory ?? {
+            'potion-healer': { quantity: 2, hidden: false },
+            dagger: { quantity: 1, hidden: false },
         },
-        equipment: { backpack: null },
-        transport: { backpacks: [], mounts: [], vehicles: [] },
+        inventoryOrder: persistedState?.player?.inventoryOrder ?? ['potion-healer', 'dagger'],
+        overflowItemIds: persistedState?.player?.overflowItemIds ?? [],
+        equipment: persistedState?.player?.equipment ?? { backpack: null },
+        transport: persistedState?.player?.transport ?? { backpacks: [], mounts: [], vehicles: [] },
     },
     ui: {
         mode: 'buy',
@@ -44,15 +51,18 @@ const store = new StateManager({
         selectedItemId: null,
         marketFilters: structuredClone(DEFAULT_MARKET_FILTERS),
     },
-    market: { items: structuredClone(INITIAL_ITEMS) },
-});
+    market: { items: persistedState?.market?.items ?? structuredClone(INITIAL_ITEMS) },
+};
 
+const bus = new EventBus();
+const store = new StateManager(initialState);
 const economySystem = new EconomySystem();
 const slotsSystem = new InventorySlotsSystem(store);
 const inventorySystem = new InventorySystem(store, bus, slotsSystem);
-const transportSystem = new TransportSystem(store, bus);
+const transportSystem = new TransportSystem(store, bus, slotsSystem);
 const marketSystem = new MarketSystem(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem);
 const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem);
+const tradeService = new TradeService(inventorySystem, getItemsById);
 
 const els = {
     money: document.querySelector('#player-money'),
@@ -66,10 +76,43 @@ const els = {
     createItemBtn: document.querySelector('#create-item-btn'),
     createItemModal: document.querySelector('#create-item-modal'),
     warningModal: document.querySelector('#warning-modal'),
+    toggleTrade: document.querySelector('#toggle-trade'),
+    tradePanel: document.querySelector('#trade-panel'),
+    tradeCopy: document.querySelector('[data-copy]'),
+    closeTradeBtn: document.querySelector('[data-close-trade]'),
+    openTradeBtn: document.querySelector('#toggle-trade'),
+    tradePayload: document.querySelector('[data-trade-payload]'),
+    tradeFeedback: document.querySelector('[data-trade-feedback]'),
+    tradeExportAll: document.querySelector('[data-export-all]'),
+    tradeExportSelected: document.querySelector('[data-export-selected]'),
+    tradeImport: document.querySelector('[data-import-items]'),
 };
 
 const askWarning = bindWarningModal(els.warningModal);
 
+
+function bindTradeToggle() {
+    els.toggleTrade.addEventListener('click', () => {
+        els.tradePanel.classList.toggle('collapsed');
+    });
+}
+
+function bindTradePanel() {
+    els.openTradeBtn.addEventListener('click', () => {
+        els.tradePanel.classList.remove('hidden');
+    });
+
+    els.closeTradeBtn.addEventListener('click', () => {
+        els.tradePanel.classList.add('hidden');
+    });
+
+    // cerrar clickeando fondo
+    els.tradePanel.addEventListener('click', (e) => {
+        if (e.target === els.tradePanel) {
+            els.tradePanel.classList.add('hidden');
+        }
+    });
+}
 
 function getItemsById() {
     const map = new Map();
@@ -79,7 +122,9 @@ function getItemsById() {
 
 function getSelectedItem() {
     const { selectedItemId } = store.getState().ui;
-    return store.getState().market.items.find((item) => item.id === selectedItemId) ?? null;
+    return store.getState().market.items.find((item) => item.id === selectedItemId)
+        ?? store.getState().player.transport.backpacks.find((item) => item.id === selectedItemId)
+        ?? null;
 }
 
 function showMessage(text, kind = 'info') {
@@ -87,10 +132,14 @@ function showMessage(text, kind = 'info') {
         info: 'color: #8aa1ff',
         success: 'color: #6ee7a2',
         warning: 'color: #facc15',
-        error: 'color: #ff6b6b; font-weight: bold'
+        error: 'color: #ff6b6b; font-weight: bold',
     };
 
     console.log(`%c[MARKET] ${text}`, styles[kind] || styles.info);
+}
+
+function persistState() {
+    storageService.save(store.getState());
 }
 
 function renderMoney() {
@@ -109,10 +158,10 @@ function renderTransportAndCapacity() {
     const state = store.getState();
     const cap = slotsSystem.getCapacity();
     const usage = slotsSystem.getUsage(getItemsById());
+    const layout = slotsSystem.getInventoryLayout(getItemsById());
     const backpack = state.player.equipment.backpack?.name ?? '---';
     const mounts = state.player.transport.mounts.length;
     const vehicles = state.player.transport.vehicles.length;
-
     const vehicleRestriction = mounts > 0 && vehicles > 0
         ? '<p class="system-message error">Restricción activa: monturas no pueden usar almacenamiento de vehículo.</p>'
         : '';
@@ -127,11 +176,15 @@ function renderTransportAndCapacity() {
             </li>
             <li class="detail-line highlight">
                 <span class="label">Capacidad</span>
-                <span class="value">${usage.objectUsage}/${cap.objectCapacity}</span>
+                <span class="value">${usage.objectUsage} / ${cap.objectCapacity}</span>
             </li>
             <li class="detail-line">
-                <span><span class="label">Armas ligeras</span> <span class="value">${usage.lightWeapons}</span></span>
-                <span><span class="label">Armas pesadas</span> <span class="value">${usage.heavyWeapons}</span></span>
+                <span><span class="label">Armas</span> <span class="value">${usage.weapons}</span></span>
+                <span><span class="label">Mascotas</span> <span class="value">${usage.pets}</span></span>
+            </li>
+            <li class="detail-line">
+                <span><span class="label">Activos</span> <span class="value">${layout.visibleEntries.length}</span></span>
+                <span><span class="label">Overflow</span> <span class="value">${layout.overflowEntries.length}</span></span>
             </li>
             <li class="detail-line">
                 <span><span class="label">Monturas</span> <span class="value">${mounts}</span></span>
@@ -149,8 +202,8 @@ function executeBuy(item, quantity) {
     if (!result.ok) return showMessage(result.reason, 'error');
 
     if (item.entityKind === 'backpack') {
-        const equipResult = transportSystem.equipBackpack(item.id);
-        if (equipResult.warning) showMessage(equipResult.warning, 'error');
+        const equipResult = transportSystem.equipBackpack(item.id, getItemsById());
+        if (!equipResult.ok) showMessage(equipResult.reason, 'error');
     }
 
     showMessage(`Compra realizada por ${formatCurrency(result.totalCost)}.`, 'success');
@@ -181,7 +234,7 @@ function handleBuyDetail(item) {
 }
 
 function handleSellDetail(item) {
-    const inventoryQty = store.getState().player.inventory[item.id] ?? 0;
+    const inventoryQty = store.getState().player.inventory[item.id]?.quantity ?? 0;
     renderSellDetail({
         container: els.detailPanel,
         item,
@@ -210,6 +263,10 @@ function renderCurrentDetail() {
 
     if (state.ui.mode === 'buy') return handleBuyDetail(selectedItem);
     if (state.ui.mode === 'sell') return handleSellDetail(selectedItem);
+
+    const backpackAction = selectedItem.entityKind === 'backpack'
+        ? `<div class="detail-actions"><button id="sell-equipped-backpack" class="btn btn-terciary top-btn">Vender mochila equipada</button></div>`
+        : '';
 
     els.detailPanel.innerHTML = `
         <hr class="detail-divider">
@@ -245,8 +302,29 @@ function renderCurrentDetail() {
                     </span>
                 </li>
             </ul>
+            ${backpackAction}
         </div>
     `;
+
+    if (selectedItem.entityKind === 'backpack') {
+        els.detailPanel.querySelector('#sell-equipped-backpack')?.addEventListener('click', () => {
+            const sale = transportSystem.sellEquippedBackpack(selectedItem.id, getItemsById());
+            if (!sale.ok) return showMessage(sale.reason, 'error');
+
+            const totalIncome = sellSystem.estimateValue(selectedItem);
+            store.update((draft) => {
+                draft.player.money += totalIncome;
+                const draftItem = draft.market.items.find((entry) => entry.id === selectedItem.id);
+                if (draftItem) {
+                    draftItem.stock = (draftItem.stock ?? 0) + 1;
+                    draftItem.economy = economySystem.applyTransaction(draftItem, 'sell', 1);
+                }
+                return draft;
+            });
+            showMessage(`Mochila vendida por ${formatCurrency(totalIncome)}.`, 'success');
+            renderApp();
+        });
+    }
 
     renderTransportAndCapacity();
 }
@@ -279,7 +357,10 @@ function renderModeUI() {
     els.modeSell.classList.toggle('active', mode === 'sell');
     els.modeInventory.classList.toggle('active', mode === 'inventory');
     els.filters.classList.toggle('hidden', mode === 'inventory');
-    els.createItemBtn.classList.toggle('hidden', mode !== 'sell');
+    els.createItemBtn.classList.toggle('hidden', mode !== 'inventory');
+    if (mode !== 'inventory') { els.tradePanel.classList.add('hidden'); }
+    els.toggleTrade.classList.toggle('hidden', mode !== 'inventory');
+    els.openTradeBtn.classList.toggle('hidden', mode !== 'inventory');
     els.marketSection.classList.add('hidden');
 }
 
@@ -296,6 +377,68 @@ function renderApp() {
     renderFilterUI();
     renderList();
     renderCurrentDetail();
+}
+
+function bindTradeEvents() {
+    els.tradeExportAll.addEventListener('click', () => {
+        const payload = tradeService.exportInventory(inventorySystem.getGroupedInventory(getItemsById()).visibleItems);
+        els.tradePayload.value = payload;
+        els.tradePayload.select();
+        setTradeFeedback(els.tradeFeedback, 'Inventario activo exportado.', 'success');
+    });
+
+    els.tradeExportSelected.addEventListener('click', () => {
+        const selectedItem = getSelectedItem();
+        if (!selectedItem) {
+            setTradeFeedback(els.tradeFeedback, 'Selecciona un ítem del inventario para exportarlo.', 'warning');
+            return;
+        }
+        const quantity = store.getState().player.inventory[selectedItem.id]?.quantity ?? 0;
+        if (!quantity) {
+            setTradeFeedback(els.tradeFeedback, 'Ese ítem no está disponible para exportación.', 'warning');
+            return;
+        }
+
+        const payload = tradeService.exportItems([{ id: selectedItem.id, name: selectedItem.name, type: selectedItem.type, stack: quantity }]);
+        els.tradePayload.value = payload;
+        els.tradePayload.select();
+        setTradeFeedback(els.tradeFeedback, 'Ítem seleccionado exportado.', 'success');
+    });
+
+    els.tradeImport.addEventListener('click', () => {
+        const result = tradeService.importItems(els.tradePayload.value);
+        if (!result.ok) {
+            setTradeFeedback(els.tradeFeedback, result.reason, 'error');
+            return;
+        }
+
+        setTradeFeedback(els.tradeFeedback, `Se importaron ${result.imported.length} entradas al inventario.`, 'success');
+        renderApp();
+    });
+
+    els.tradeCopy.addEventListener('click', async () => {
+        const value = els.tradePayload.value.trim();
+
+        if (!value) {
+            setTradeFeedback(els.tradeFeedback, 'No hay nada para copiar.', 'warning');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(value);
+
+            // UX: selecciona el texto igual (feedback visual)
+            els.tradePayload.select();
+
+            setTradeFeedback(els.tradeFeedback, 'Código copiado al portapapeles.', 'success');
+        } catch (err) {
+            // fallback viejo pero confiable
+            els.tradePayload.select();
+            document.execCommand('copy');
+
+            setTradeFeedback(els.tradeFeedback, 'Copiado (modo compatible).', 'success');
+        }
+    });
 }
 
 function bindEvents() {
@@ -331,7 +474,13 @@ function bindEvents() {
         },
     });
 
+    bindTradeEvents();
+
+    store.subscribe(() => persistState());
     bus.on('inventory:changed', () => renderMoney());
+    bus.on('transport:changed', () => persistState());
+    bus.on('market:bought', () => persistState());
+    bus.on('market:sold', () => persistState());
 }
 
 
@@ -343,5 +492,8 @@ window.addEventListener('unhandledrejection', (event) => {
     console.error('[MARKET] 💥 PROMISE NO MANEJADA:', event.reason);
 });
 
+slotsSystem.refreshOverflow(getItemsById());
+bindTradePanel();
+bindTradeToggle();
 bindEvents();
 renderApp();

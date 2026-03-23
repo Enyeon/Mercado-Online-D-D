@@ -11,11 +11,12 @@ import { createItemCard } from '../components/item-card.js';
 import { filterAndSortMarketItems } from '../../utils/market-filters.js';
 
 export function renderSellView({ container, inventoryEntries, filters, onSelect }) {
+    const activeEntries = inventoryEntries.visibleItems;
     const filteredEntries = filterAndSortMarketItems(
-        inventoryEntries.map(({ item }) => item),
+        activeEntries.map(({ item }) => item),
         filters,
     );
-    const quantityById = new Map(inventoryEntries.map(({ item, quantity }) => [item.id, quantity]));
+    const quantityById = new Map(activeEntries.map(({ item, quantity }) => [item.id, quantity]));
 
     container.innerHTML = '';
 

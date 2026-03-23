@@ -9,9 +9,10 @@
 
 
 export class TransportSystem {
-    constructor(store, bus) {
+    constructor(store, bus, slotsSystem = null) {
         this.store = store;
         this.bus = bus;
+        this.slotsSystem = slotsSystem;
     }
 
     addOwnedEntry(key, entity) {
@@ -31,12 +32,13 @@ export class TransportSystem {
         this.bus.emit('transport:changed', this.store.getState().player.transport);
     }
 
-    purchaseBackpack(backpack) {
+    purchaseBackpack(backpack, itemsById) {
         this.addOwnedEntry('backpacks', backpack);
         this.bus.emit('transport:changed', this.store.getState().player.transport);
+        if (!this.store.getState().player.equipment.backpack) this.equipBackpack(backpack.id, itemsById);
     }
 
-    equipBackpack(backpackId) {
+    equipBackpack(backpackId, itemsById) {
         const state = this.store.getState();
         const backpack = state.player.transport.backpacks.find((entry) => entry.id === backpackId);
         if (!backpack) return { ok: false, reason: 'No tienes esa mochila.' };
@@ -46,10 +48,32 @@ export class TransportSystem {
             return draft;
         });
 
+        if (this.slotsSystem && itemsById) this.slotsSystem.refreshOverflow(itemsById);
         this.bus.emit('transport:changed', this.store.getState().player.transport);
         return {
             ok: true,
         };
+    }
+
+    sellEquippedBackpack(backpackId, itemsById) {
+        let soldBackpack = null;
+
+        this.store.update((draft) => {
+            const backpacks = draft.player.transport.backpacks;
+            const index = backpacks.findIndex((entry) => entry.id === backpackId);
+            if (index === -1) return draft;
+
+            [soldBackpack] = backpacks.splice(index, 1);
+            if (draft.player.equipment.backpack?.id === backpackId) {
+                draft.player.equipment.backpack = backpacks.at(-1) ?? null;
+            }
+            return draft;
+        });
+
+        if (!soldBackpack) return { ok: false, reason: 'No tienes esa mochila.' };
+        if (this.slotsSystem && itemsById) this.slotsSystem.refreshOverflow(itemsById);
+        this.bus.emit('transport:changed', this.store.getState().player.transport);
+        return { ok: true, backpack: soldBackpack };
     }
 
     attachPackToMount(mountId, pack) {
