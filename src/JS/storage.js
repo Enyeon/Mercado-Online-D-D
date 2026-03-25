@@ -15,6 +15,7 @@ export class StorageService {
     constructor(storage = window.localStorage, storageKey = STORAGE_KEY) {
         this.storage = storage;
         this.storageKey = storageKey;
+        this.lastSavedSnapshot = null;
     }
 
     load() {
@@ -24,6 +25,8 @@ export class StorageService {
             console.log('[storage] raw persisted state', JSON.parse(raw));
             const normalized = this.normalizePersistedState(JSON.parse(raw));
             console.log('[storage] normalized persisted state', normalized);
+            console.log('[LOAD]', structuredClone(normalized?.player?.inventory ?? {}));
+            this.lastSavedSnapshot = JSON.stringify(this.serializeState(normalized));
             return normalized;
         } catch (error) {
             console.warn('[STORAGE] No se pudo cargar el estado persistido.', error);
@@ -34,11 +37,29 @@ export class StorageService {
     save(state) {
         try {
             const serialized = this.serializeState(state);
+            const nextSnapshot = JSON.stringify(serialized);
+            if (nextSnapshot === this.lastSavedSnapshot) {
+                console.log('[storage] save skipped (unchanged snapshot)');
+                return;
+            }
             console.log('[storage] saving state snapshot', serialized);
-            this.storage.setItem(this.storageKey, JSON.stringify(serialized));
+            console.log('[SAVE]', structuredClone(state.player.inventory));
+            this.storage.setItem(this.storageKey, nextSnapshot);
+            this.lastSavedSnapshot = nextSnapshot;
         } catch (error) {
             console.warn('[STORAGE] No se pudo guardar el estado persistido.', error);
         }
+    }
+
+    getStorageKey() {
+        return this.storageKey;
+    }
+
+    clearGameState({ reload = false } = {}) {
+        this.storage.removeItem(this.storageKey);
+        this.lastSavedSnapshot = null;
+        console.info('[storage] cleared game state key', this.storageKey);
+        if (reload) window.location.reload();
     }
 
     serializeState(state) {
@@ -57,7 +78,8 @@ export class StorageService {
 
     normalizePersistedState(savedState) {
         const player = savedState?.player ?? {};
-        const inventory = normalizeInventoryMap(savedState?.inventory ?? player.inventory ?? {});
+        const rawInventory = savedState?.inventory ?? player.inventory ?? {};
+        const inventory = this.sanitizeInventory(rawInventory);
         return {
             gold: Number(savedState?.gold ?? player.money ?? 0),
             player: {
@@ -79,5 +101,21 @@ export class StorageService {
                 items: Array.isArray(savedState?.market?.items) ? savedState.market.items : null,
             },
         };
+    }
+
+    sanitizeInventory(rawInventory) {
+        if (Array.isArray(rawInventory)) {
+            return normalizeInventoryMap(
+                rawInventory.reduce((accumulator, entry) => {
+                    const id = String(entry?.id ?? '').trim();
+                    if (!id) return accumulator;
+                    const current = accumulator[id]?.quantity ?? 0;
+                    accumulator[id] = { quantity: current + (entry?.quantity ?? entry?.stack ?? 0) };
+                    return accumulator;
+                }, {}),
+            );
+        }
+
+        return normalizeInventoryMap(rawInventory);
     }
 }

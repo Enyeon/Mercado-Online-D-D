@@ -20,21 +20,32 @@ export function normalizeItemDefinition(item) {
 }
 
 export function createInventoryRecord(quantity = 0) {
+    const parsed = Number(quantity);
+    const sanitizedQuantity = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
     return {
-        quantity: Math.max(0, Number(quantity) || 0),
+        quantity: sanitizedQuantity,
         hidden: false,
     };
 }
 
 export function normalizeInventoryMap(inventory = {}) {
-    return Object.fromEntries(
-        Object.entries(inventory)
-            .map(([itemId, value]) => {
-                if (typeof value === 'number') return [itemId, createInventoryRecord(value)];
-                return [itemId, createInventoryRecord(value?.quantity ?? 0)];
-            })
-            .filter(([, record]) => record.quantity > 0),
-    );
+    const accumulator = {};
+
+    Object.entries(inventory ?? {}).forEach(([itemIdRaw, value]) => {
+        const itemId = String(itemIdRaw ?? '').trim();
+        if (!itemId) return;
+
+        const record = typeof value === 'number'
+            ? createInventoryRecord(value)
+            : createInventoryRecord(value?.quantity ?? 0);
+
+        if (record.quantity <= 0) return;
+
+        const previous = accumulator[itemId]?.quantity ?? 0;
+        accumulator[itemId] = createInventoryRecord(previous + record.quantity);
+    });
+
+    return accumulator;
 }
 
 export function getItemQuantity(inventory, itemId) {
@@ -73,10 +84,28 @@ export function ensureInventoryOrder(order = [], inventory = {}) {
     return unique;
 }
 
-export function mergeInventoryItem({ inventory, order, item, quantity }) {
-    const previous = getItemQuantity(inventory, item.id);
-    setItemQuantity(inventory, item.id, previous + quantity);
-    if (!order.includes(item.id)) order.push(item.id);
+export function addItemSafe(inventory, id, quantity, options = {}) {
+    const logger = options.logger ?? console;
+    const normalizedId = String(id ?? '').trim();
+    const parsedQuantity = Number(quantity);
+    const nextQuantity = Number.isFinite(parsedQuantity) ? Math.trunc(parsedQuantity) : NaN;
+
+    if (!normalizedId) {
+        logger.warn('[ADD ITEM SAFE] invalid id', { id, quantity });
+        return { ok: false, reason: 'invalid-id' };
+    }
+
+    if (!Number.isInteger(nextQuantity) || nextQuantity <= 0) {
+        logger.warn('[ADD ITEM SAFE] invalid quantity', { id: normalizedId, quantity });
+        return { ok: false, reason: 'invalid-quantity' };
+    }
+
+    const previous = getItemQuantity(inventory, normalizedId);
+    const updated = previous + nextQuantity;
+    setItemQuantity(inventory, normalizedId, updated);
+
+    logger.trace('[ADD ITEM]', normalizedId, nextQuantity, { previous, updated });
+    return { ok: true, previous, updated };
 }
 
 export function getInventoryDebugSummary(inventory = {}, itemsById, options = {}) {

@@ -33,14 +33,20 @@ import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-f
 const storageService = new StorageService();
 const persistedState = storageService.load();
 console.log('[bootstrap] persisted vs memory seed', { persistedInventory: persistedState?.player?.inventory ?? null });
+const bootstrapCount = (globalThis.__MARKET_BOOTSTRAP_COUNT__ ?? 0) + 1;
+globalThis.__MARKET_BOOTSTRAP_COUNT__ = bootstrapCount;
+console.log('[BOOTSTRAP]', { bootstrapCount });
+
+const initialInventory = persistedState?.player?.inventory ?? {
+    'potion-healer': { quantity: 2, hidden: false },
+    dagger: { quantity: 1, hidden: false },
+};
+console.log('[INIT]', structuredClone(initialInventory));
 
 const initialState = {
     player: {
         money: persistedState?.gold ?? 10,
-        inventory: persistedState?.player?.inventory ?? {
-            'potion-healer': { quantity: 2, hidden: false },
-            dagger: { quantity: 1, hidden: false },
-        },
+        inventory: initialInventory,
         inventoryOrder: persistedState?.player?.inventoryOrder ?? ['potion-healer', 'dagger'],
         overflowItemIds: persistedState?.player?.overflowItemIds ?? [],
         equipment: persistedState?.player?.equipment ?? { backpack: null },
@@ -142,6 +148,21 @@ function showMessage(text, kind = 'info') {
 function persistState() {
     storageService.save(store.getState());
 }
+let persistQueued = false;
+function schedulePersistState(reason = 'state:update') {
+    if (persistQueued) return;
+    persistQueued = true;
+    queueMicrotask(() => {
+        persistQueued = false;
+        console.log('[PERSIST QUEUED]', reason);
+        persistState();
+    });
+}
+
+function clearPersistedState({ reload = false } = {}) {
+    storageService.clearGameState({ reload });
+}
+
 
 function renderMoney() {
     els.money.textContent = `${formatCurrency(store.getState().player.money)}`;
@@ -516,11 +537,8 @@ function bindEvents() {
 
     bindTradeEvents();
 
-    store.subscribe(() => persistState());
+    store.subscribe(() => schedulePersistState('store:subscribe'));
     bus.on('inventory:changed', () => renderMoney());
-    bus.on('transport:changed', () => persistState());
-    bus.on('market:bought', () => persistState());
-    bus.on('market:sold', () => persistState());
 }
 
 
@@ -536,4 +554,11 @@ slotsSystem.refreshOverflow(getItemsById());
 bindTradePanel();
 bindTradeToggle();
 bindEvents();
+
+window.mercadoDebug = {
+    storageKey: storageService.getStorageKey(),
+    clearPersistedState: () => clearPersistedState(),
+    clearPersistedStateAndReload: () => clearPersistedState({ reload: true }),
+};
+
 renderApp();
