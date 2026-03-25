@@ -21,7 +21,10 @@ export class StorageService {
         try {
             const raw = this.storage.getItem(this.storageKey);
             if (!raw) return null;
-            return this.normalizePersistedState(JSON.parse(raw));
+            console.log('[storage] raw persisted state', JSON.parse(raw));
+            const normalized = this.normalizePersistedState(JSON.parse(raw));
+            console.log('[storage] normalized persisted state', normalized);
+            return normalized;
         } catch (error) {
             console.warn('[STORAGE] No se pudo cargar el estado persistido.', error);
             return null;
@@ -30,7 +33,9 @@ export class StorageService {
 
     save(state) {
         try {
-            this.storage.setItem(this.storageKey, JSON.stringify(this.serializeState(state)));
+            const serialized = this.serializeState(state);
+            console.log('[storage] saving state snapshot', serialized);
+            this.storage.setItem(this.storageKey, JSON.stringify(serialized));
         } catch (error) {
             console.warn('[STORAGE] No se pudo guardar el estado persistido.', error);
         }

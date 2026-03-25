@@ -32,6 +32,7 @@ import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-f
 
 const storageService = new StorageService();
 const persistedState = storageService.load();
+console.log('[bootstrap] persisted vs memory seed', { persistedInventory: persistedState?.player?.inventory ?? null });
 
 const initialState = {
     player: {
@@ -165,6 +166,13 @@ function renderTransportAndCapacity() {
     const vehicleRestriction = mounts > 0 && vehicles > 0
         ? '<p class="system-message error">Restricción activa: monturas no pueden usar almacenamiento de vehículo.</p>'
         : '';
+
+    console.group('[inventory] renderTransportAndCapacity');
+    console.log('inventory raw', state.player.inventory);
+    console.log('capacity', cap);
+    console.log('usage', usage);
+    console.log('layout visible/overflow counts', { visible: layout.visibleEntries.length, overflow: layout.overflowEntries.length });
+    console.groupEnd();
 
     els.detailPanel.insertAdjacentHTML('beforeend', `
         <hr class="detail-divider">
@@ -331,7 +339,8 @@ function renderCurrentDetail() {
 
 function renderList() {
     const state = store.getState();
-    console.log('INVENTORY STATE:', state.player.inventory);
+    console.group('[inventory] renderList');
+    console.log('inventory state before render', state.player.inventory);
     const itemsById = getItemsById();
     const inventoryEntries = inventorySystem.getGroupedInventory(itemsById);
     const selectItem = (item) => {
@@ -344,7 +353,15 @@ function renderList() {
     }
 
     if (state.ui.mode === 'inventory') {
+        console.log('before renderInventoryView', {
+            visibleItems: inventoryEntries.visibleItems.map(({ item, quantity }) => ({ id: item.id, quantity })),
+            overflowItems: inventoryEntries.overflowItems.map(({ item, quantity }) => ({ id: item.id, quantity })),
+        });
         renderInventoryView({ container: els.itemList, inventoryEntries, onSelect: selectItem });
+        console.log('after renderInventoryView', {
+            domCards: els.itemList.querySelectorAll('.item-card').length,
+            domTitles: els.itemList.querySelectorAll('.inventory-section-title').length,
+        });
     }
 
     if (state.ui.mode === 'sell') {
@@ -359,8 +376,18 @@ function renderList() {
         console.log('equipped backpack', store.getState().player.equipment.backpack?.id ?? null);
         console.log('grouped visible', inventoryEntries.visibleItems.map(({ item, quantity }) => ({ id: item.id, quantity })));
         console.log('grouped overflow', inventoryEntries.overflowItems.map(({ item, quantity }) => ({ id: item.id, quantity })));
+        const renderedUniqueDataCount = new Set([
+            ...(inventoryEntries.backpack ? [inventoryEntries.backpack.id] : []),
+            ...inventoryEntries.visibleItems.map(({ item }) => item.id),
+            ...inventoryEntries.overflowItems.map(({ item }) => item.id),
+        ]).size;
+        console.log('dom .item-card count', els.itemList.querySelectorAll('.item-card').length);
+        console.log('unique data count', renderedUniqueDataCount);
+        console.log('titles ignored by data count', els.itemList.querySelectorAll('.inventory-section-title').length);
         console.groupEnd();
     }
+
+    console.groupEnd();
 }
 
 function renderModeUI() {
@@ -384,6 +411,7 @@ function renderFilterUI() {
 }
 
 function renderApp() {
+    console.count('[inventory] renderApp calls');
     renderMoney();
     renderModeUI();
     renderFilterUI();

@@ -79,36 +79,96 @@ export function mergeInventoryItem({ inventory, order, item, quantity }) {
     if (!order.includes(item.id)) order.push(item.id);
 }
 
-export function countUsageByType(inventory, itemsById) {
+export function getInventoryDebugSummary(inventory = {}, itemsById, options = {}) {
+    const excludedIds = new Set(options.excludedIds ?? []);
+
+    return Object.entries(inventory).map(([itemId, record]) => {
+        const item = itemsById.get(itemId);
+        const quantity = record?.quantity ?? 0;
+        const slotSize = item?.slotSize ?? 1;
+        const renderedSlots = item?.stackable ? (quantity > 0 ? slotSize : 0) : quantity * slotSize;
+
+        return {
+            id: itemId,
+            name: item?.name ?? 'UNKNOWN_ITEM',
+            quantity,
+            stackable: item?.stackable ?? false,
+            slotSize,
+            renderedSlots,
+            excluded: excludedIds.has(itemId),
+            type: item?.type ?? 'unknown',
+            entityKind: item?.entityKind ?? 'unknown',
+        };
+    });
+}
+
+export function countUsageByType(inventory, itemsById, options = {}) {
     let weapons = 0;
     let pets = 0;
     let objectUsage = 0;
+    const excludedIds = new Set(options.excludedIds ?? []);
+
+    console.group('[inventory] countUsageByType');
+    console.log('raw inventory', inventory);
+    console.log('excluded ids', [...excludedIds]);
 
     for (const [itemId, record] of Object.entries(inventory)) {
         const item = itemsById.get(itemId);
         if (!item || record.quantity <= 0) continue;
 
+        if (excludedIds.has(itemId)) {
+            console.log('skip excluded item', { itemId, quantity: record.quantity, entityKind: item.entityKind });
+            continue;
+        }
+
         if (item.type === 'arma') weapons += record.quantity;
         if (item.type === 'mascota') pets += record.quantity;
-        if (NON_CAPACITY_TYPES.has(item.type)) continue;
+        if (NON_CAPACITY_TYPES.has(item.type)) {
+            console.log('skip non-capacity item', { itemId, type: item.type, quantity: record.quantity });
+            continue;
+        }
 
-        objectUsage += item.stackable ? (item.slotSize ?? 1) : record.quantity * (item.slotSize ?? 1);
+        const slotUsage = item.stackable ? (item.slotSize ?? 1) : record.quantity * (item.slotSize ?? 1);
+        objectUsage += slotUsage;
+
+        console.log('counted item', {
+            itemId,
+            quantity: record.quantity,
+            stackable: item.stackable,
+            slotSize: item.slotSize ?? 1,
+            slotUsage,
+            runningObjectUsage: objectUsage,
+        });
     }
+
+    console.log('usage result', { weapons, pets, objectUsage });
+    console.groupEnd();
 
     return { weapons, pets, objectUsage };
 }
 
-export function partitionInventory({ inventory, order, itemsById, capacity }) {
+export function partitionInventory({ inventory, order, itemsById, capacity, excludedIds = [] }) {
     const visibleEntries = [];
     const overflowEntries = [];
     let usedCapacity = 0;
+    const skippedIds = new Set(excludedIds);
 
     const orderedIds = ensureInventoryOrder(order, inventory);
+
+    console.group('[inventory] partitionInventory');
+    console.log('raw inventory', inventory);
+    console.log('order', orderedIds);
+    console.log('capacity', capacity);
+    console.log('excluded ids', [...skippedIds]);
 
     orderedIds.forEach((itemId) => {
         const record = inventory[itemId];
         const item = itemsById.get(itemId);
         if (!record || !item || record.quantity <= 0) return;
+        if (skippedIds.has(itemId)) {
+            console.log('skip excluded item from layout', { itemId, quantity: record.quantity, entityKind: item.entityKind });
+            return;
+        }
 
         const slotCost = NON_CAPACITY_TYPES.has(item.type)
             ? 0
@@ -118,13 +178,24 @@ export function partitionInventory({ inventory, order, itemsById, capacity }) {
         if (usedCapacity + slotCost <= capacity || slotCost === 0) {
             usedCapacity += slotCost;
             visibleEntries.push(entry);
+            console.log('visible entry', { itemId, quantity: record.quantity, slotCost, usedCapacity });
             return;
         }
 
         overflowEntries.push({ ...entry, hidden: true });
+        console.log('overflow entry', { itemId, quantity: record.quantity, slotCost, usedCapacity });
     });
 
-    return { visibleEntries, overflowEntries, usedCapacity, totalEntries: visibleEntries.length + overflowEntries.length };
+    const result = { visibleEntries, overflowEntries, usedCapacity, totalEntries: visibleEntries.length + overflowEntries.length };
+    console.log('layout result', {
+        visibleIds: visibleEntries.map(({ item, quantity }) => ({ id: item.id, quantity })),
+        overflowIds: overflowEntries.map(({ item, quantity }) => ({ id: item.id, quantity })),
+        usedCapacity,
+        totalEntries: result.totalEntries,
+    });
+    console.groupEnd();
+
+    return result;
 }
 
 export function serializeInventoryForTrade(entries) {
