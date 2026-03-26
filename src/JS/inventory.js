@@ -10,6 +10,7 @@
 export const BASE_OBJECT_CAPACITY = 4;
 export const NON_CAPACITY_TYPES = new Set(['mascota', 'montura']);
 export const BACKPACK_TYPE = 'mochila';
+export const MAX_STACK = 9;
 
 export function normalizeItemDefinition(item) {
     return {
@@ -21,7 +22,9 @@ export function normalizeItemDefinition(item) {
 
 export function createInventoryRecord(quantity = 0) {
     const parsed = Number(quantity);
-    const sanitizedQuantity = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+    const sanitizedQuantity = Number.isFinite(parsed)
+        ? Math.min(MAX_STACK, Math.max(0, Math.trunc(parsed)))
+        : 0;
     return {
         quantity: sanitizedQuantity,
         hidden: false,
@@ -53,15 +56,15 @@ export function getItemQuantity(inventory, itemId) {
 }
 
 export function setItemQuantity(inventory, itemId, quantity) {
-    const nextQuantity = Math.max(0, Number(quantity) || 0);
-    if (nextQuantity <= 0) {
+    const nextRecord = createInventoryRecord(quantity);
+    if (nextRecord.quantity <= 0) {
         delete inventory[itemId];
         return inventory;
     }
 
     inventory[itemId] = {
         ...(inventory[itemId] ?? createInventoryRecord()),
-        quantity: nextQuantity,
+        quantity: nextRecord.quantity,
     };
     return inventory;
 }
@@ -101,11 +104,17 @@ export function addItemSafe(inventory, id, quantity, options = {}) {
     }
 
     const previous = getItemQuantity(inventory, normalizedId);
-    const updated = previous + nextQuantity;
+    const targetQuantity = previous + nextQuantity;
+    const updated = createInventoryRecord(targetQuantity).quantity;
     setItemQuantity(inventory, normalizedId, updated);
 
     logger.trace('[ADD ITEM]', normalizedId, nextQuantity, { previous, updated });
-    return { ok: true, previous, updated };
+    return {
+        ok: true,
+        previous,
+        updated,
+        capped: updated < targetQuantity,
+    };
 }
 
 export function getInventoryDebugSummary(inventory = {}, itemsById, options = {}) {

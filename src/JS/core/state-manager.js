@@ -9,7 +9,7 @@
 
 export class StateManager {
     constructor(initialState) {
-        this.state = structuredClone(initialState);
+        this.state = this.cloneState(initialState);
         this.subscribers = new Set();
     }
 
@@ -26,7 +26,8 @@ export class StateManager {
     }
 
     update(updater) {
-        this.state = updater(structuredClone(this.state));
+        const draft = this.cloneState(this.state);
+        this.state = updater(draft) ?? draft;
         this.notify();
     }
 
@@ -37,5 +38,16 @@ export class StateManager {
 
     notify() {
         this.subscribers.forEach((handler) => handler(this.state));
+    }
+
+    cloneState(value) {
+        try {
+            return structuredClone(value);
+        } catch (error) {
+            console.warn('[StateManager] structuredClone fallback activated.', error);
+            return JSON.parse(JSON.stringify(value, (_key, candidate) => (
+                typeof candidate === 'function' ? undefined : candidate
+            )));
+        }
     }
 }

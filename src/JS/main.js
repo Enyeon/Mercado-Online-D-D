@@ -16,7 +16,8 @@ import { InventorySlotsSystem } from './systems/inventory-slots-system.js';
 import { MarketSystem } from './systems/market-system.js';
 import { SellSystem } from './systems/sell-system.js';
 import { TransportSystem } from './systems/transport-system.js';
-import { StorageService } from './storage.js';
+import { createNegotiationState, handlePlayerAction } from './systems/negotiation-system.js';
+import { SupabaseGameAPI } from './game-api.js';
 import { TradeService } from './trade.js';
 import { setTradeFeedback } from './ui.js';
 import { formatCurrency } from './utils/formatters.js';
@@ -27,38 +28,39 @@ import { renderFilters } from './ui/components/filters-bar.js';
 import { renderBuyDetail, renderDetailPlaceholder, renderSellDetail } from './ui/components/detail-panel.js';
 import { renderInventoryView } from './ui/views/inventory-view.js';
 import { renderMarketView } from './ui/views/market-view.js';
+import { renderNegotiationView } from './ui/views/negotiation-view.js';
 import { renderSellView } from './ui/views/sell-view.js';
 import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
 
-const storageService = new StorageService();
-const persistedState = storageService.load();
-console.log('[bootstrap] persisted vs memory seed', { persistedInventory: persistedState?.player?.inventory ?? null });
+const gameApi = new SupabaseGameAPI();
 const bootstrapCount = (globalThis.__MARKET_BOOTSTRAP_COUNT__ ?? 0) + 1;
 globalThis.__MARKET_BOOTSTRAP_COUNT__ = bootstrapCount;
 console.log('[BOOTSTRAP]', { bootstrapCount });
 
-const initialInventory = persistedState?.player?.inventory ?? {
+const initialInventorySeed = {
     'potion-healer': { quantity: 2, hidden: false },
     dagger: { quantity: 1, hidden: false },
 };
-console.log('[INIT]', structuredClone(initialInventory));
 
 const initialState = {
     player: {
-        money: persistedState?.gold ?? 10,
-        inventory: initialInventory,
-        inventoryOrder: persistedState?.player?.inventoryOrder ?? ['potion-healer', 'dagger'],
-        overflowItemIds: persistedState?.player?.overflowItemIds ?? [],
-        equipment: persistedState?.player?.equipment ?? { backpack: null },
-        transport: persistedState?.player?.transport ?? { backpacks: [], mounts: [], vehicles: [] },
+        money: 10,
+        inventory: initialInventorySeed,
+        inventoryOrder: ['potion-healer', 'dagger'],
+        overflowItemIds: [],
+        equipment: { backpack: null },
+        transport: { backpacks: [], mounts: [], vehicles: [] },
     },
     ui: {
         mode: 'buy',
         marketSection: 'all',
         selectedItemId: null,
         marketFilters: structuredClone(DEFAULT_MARKET_FILTERS),
+        negotiation: null,
     },
-    market: { items: persistedState?.market?.items ?? structuredClone(INITIAL_ITEMS) },
+    market: {
+        items: structuredClone(INITIAL_ITEMS)
+    },
 };
 
 const bus = new EventBus();
@@ -72,6 +74,8 @@ const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem);
 const tradeService = new TradeService(inventorySystem, getItemsById);
 
 const els = {
+    topbar: document.querySelector('.topbar'),
+    layout: document.querySelector('.layout'),
     money: document.querySelector('#player-money'),
     itemList: document.querySelector('#item-list'),
     detailPanel: document.querySelector('#item-detail'),
@@ -94,6 +98,11 @@ const els = {
     tradeExportSelected: document.querySelector('[data-export-selected]'),
     tradeImport: document.querySelector('[data-import-items]'),
 };
+
+const negotiationRoot = document.createElement('section');
+negotiationRoot.id = 'negotiation-view';
+negotiationRoot.className = 'negotiation-view hidden';
+document.body.appendChild(negotiationRoot);
 
 const askWarning = bindWarningModal(els.warningModal);
 
@@ -145,24 +154,71 @@ function showMessage(text, kind = 'info') {
     console.log(`%c[MARKET] ${text}`, styles[kind] || styles.info);
 }
 
-function persistState() {
-    storageService.save(store.getState());
-}
 let persistQueued = false;
-function schedulePersistState(reason = 'state:update') {
-    if (persistQueued) return;
-    persistQueued = true;
-    queueMicrotask(() => {
-        persistQueued = false;
-        console.log('[PERSIST QUEUED]', reason);
-        persistState();
+let persistInFlight = false;
+let lastPersistedSnapshot = null;
+
+function buildPersistedSnapshot(state) {
+    return JSON.stringify({
+        gold: state.player.money,
+        inventory: state.player.inventory,
+        market: state.market.items.map((item) => ({ id: item.id, basePrice: item.basePrice, stock: item.stock })),
     });
 }
 
-function clearPersistedState({ reload = false } = {}) {
-    storageService.clearGameState({ reload });
+async function persistState() {
+    if (!gameApi.isEnabled()) return;
+
+    const state = store.getState();
+    const nextSnapshot = buildPersistedSnapshot(state);
+
+    if (nextSnapshot === lastPersistedSnapshot) {
+        return;
+    }
+
+    try {
+        await gameApi.saveState(state);
+        lastPersistedSnapshot = nextSnapshot;
+    } catch (error) {
+        console.error('[API] saveState failed', error);
+    }
 }
 
+async function hydrateFromBackend() {
+    if (!gameApi.isEnabled()) return;
+
+    try {
+        const persistedState = await gameApi.loadPlayer();
+        if (!persistedState) return;
+
+        console.log('[bootstrap] hydrated from Supabase', persistedState);
+
+        store.update((draft) => {
+            draft.player.money = persistedState.gold;
+            draft.player.inventory = persistedState.inventory;
+            draft.player.inventoryOrder = Object.keys(persistedState.inventory);
+
+            if (persistedState.marketById?.size) {
+                draft.market.items = draft.market.items.map((item) => {
+                    const remote = persistedState.marketById.get(item.id);
+                    if (!remote) return item;
+                    return {
+                        ...item,
+                        basePrice: Number(remote.price ?? item.basePrice),
+                        stock: Number(remote.stock ?? item.stock),
+                    };
+                });
+            }
+            return draft;
+        });
+
+        slotsSystem.refreshOverflow(getItemsById());
+        lastPersistedSnapshot = buildPersistedSnapshot(store.getState());
+        renderApp();
+    } catch (error) {
+        console.error('[API] hydrateFromBackend failed', error);
+    }
+}
 
 function renderMoney() {
     els.money.textContent = `${formatCurrency(store.getState().player.money)}`;
@@ -172,14 +228,28 @@ function setMode(mode) {
     store.update((state) => {
         state.ui.mode = mode;
         state.ui.selectedItemId = null;
+        state.ui.negotiation = null;
         return state;
     });
+}
+
+function openNegotiation(item) {
+    const vendorType = economySystem.resolveVendorType(item);
+    const negotiationState = createNegotiationState({
+        item,
+        vendorType,
+        reputation: 0,
+        performPurchase: (unitPrice) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPrice),
+    });
+    store.patch({ ui: { ...store.getState().ui, negotiation: negotiationState, selectedItemId: item.id } });
+    renderApp();
 }
 
 function renderTransportAndCapacity() {
     const state = store.getState();
     const cap = slotsSystem.getCapacity();
     const usage = slotsSystem.getUsage(getItemsById());
+    const metrics = slotsSystem.getInventoryMetrics(getItemsById());
     const layout = slotsSystem.getInventoryLayout(getItemsById());
     const backpack = state.player.equipment.backpack?.name ?? '---';
     const mounts = state.player.transport.mounts.length;
@@ -192,6 +262,7 @@ function renderTransportAndCapacity() {
     console.log('inventory raw', state.player.inventory);
     console.log('capacity', cap);
     console.log('usage', usage);
+    console.log('inventory metrics', metrics);
     console.log('layout visible/overflow counts', { visible: layout.visibleEntries.length, overflow: layout.overflowEntries.length });
     console.groupEnd();
 
@@ -370,7 +441,13 @@ function renderList() {
     };
 
     if (state.ui.mode === 'buy') {
-        renderMarketView({ container: els.itemList, items: state.market.items, filters: state.ui.marketFilters, onSelect: selectItem });
+        renderMarketView({
+            container: els.itemList,
+            items: state.market.items,
+            filters: state.ui.marketFilters,
+            onSelect: selectItem,
+            onTalk: openNegotiation,
+        });
     }
 
     if (state.ui.mode === 'inventory') {
@@ -412,7 +489,13 @@ function renderList() {
 }
 
 function renderModeUI() {
+    const negotiation = store.getState().ui.negotiation;
     const mode = store.getState().ui.mode;
+    const hasNegotiation = Boolean(negotiation);
+    els.topbar.classList.toggle('hidden', hasNegotiation);
+    els.layout.classList.toggle('hidden', hasNegotiation);
+    negotiationRoot.classList.toggle('hidden', !hasNegotiation);
+
     els.modeBuy.classList.toggle('active', mode === 'buy');
     els.modeSell.classList.toggle('active', mode === 'sell');
     els.modeInventory.classList.toggle('active', mode === 'inventory');
@@ -422,6 +505,27 @@ function renderModeUI() {
     els.toggleTrade.classList.toggle('hidden', mode !== 'inventory');
     els.openTradeBtn.classList.toggle('hidden', mode !== 'inventory');
     els.marketSection.classList.add('hidden');
+}
+
+function renderNegotiationScreen() {
+    const state = store.getState().ui.negotiation;
+    if (!state) {
+        negotiationRoot.innerHTML = '';
+        return;
+    }
+
+    renderNegotiationView(state.item, state.vendorType, {
+        container: negotiationRoot,
+        state,
+        onAction: (action) => {
+            const updated = handlePlayerAction(action, store.getState().ui.negotiation);
+            store.patch({ ui: { ...store.getState().ui, negotiation: updated } });
+            if (updated.closed || action === 'leave') {
+                store.patch({ ui: { ...store.getState().ui, negotiation: null } });
+            }
+            renderApp();
+        },
+    });
 }
 
 function renderFilterUI() {
@@ -436,8 +540,11 @@ function renderApp() {
     renderMoney();
     renderModeUI();
     renderFilterUI();
-    renderList();
-    renderCurrentDetail();
+    renderNegotiationScreen();
+    if (!store.getState().ui.negotiation) {
+        renderList();
+        renderCurrentDetail();
+    }
 }
 
 function bindTradeEvents() {
@@ -537,7 +644,6 @@ function bindEvents() {
 
     bindTradeEvents();
 
-    store.subscribe(() => schedulePersistState('store:subscribe'));
     bus.on('inventory:changed', () => renderMoney());
 }
 
@@ -556,9 +662,9 @@ bindTradeToggle();
 bindEvents();
 
 window.mercadoDebug = {
-    storageKey: storageService.getStorageKey(),
-    clearPersistedState: () => clearPersistedState(),
-    clearPersistedStateAndReload: () => clearPersistedState({ reload: true }),
+    supabaseEnabled: gameApi.isEnabled(),
+    reloadFromBackend: () => hydrateFromBackend(),
 };
 
 renderApp();
+hydrateFromBackend();

@@ -76,10 +76,45 @@ export class StorageService {
         };
     }
 
+    sanitizeStateForSave(state) {
+        const normalizedInventory = normalizeInventoryMap(state?.player?.inventory ?? {});
+        return {
+            ...state,
+            player: {
+                ...(state?.player ?? {}),
+                money: Number.isFinite(Number(state?.player?.money)) ? Number(state.player.money) : 0,
+                inventory: normalizedInventory,
+                inventoryOrder: ensureInventoryOrder(state?.player?.inventoryOrder ?? [], normalizedInventory),
+                overflowItemIds: Array.isArray(state?.player?.overflowItemIds) ? state.player.overflowItemIds.filter((itemId) => normalizedInventory[itemId]) : [],
+            },
+            market: {
+                ...(state?.market ?? {}),
+                items: Array.isArray(state?.market?.items) ? state.market.items : [],
+            },
+        };
+    }
+
     normalizePersistedState(savedState) {
         const player = savedState?.player ?? {};
-        const rawInventory = savedState?.inventory ?? player.inventory ?? {};
-        const inventory = this.sanitizeInventory(rawInventory);
+        const legacyInventory = this.sanitizeInventory(savedState?.inventory ?? {});
+        const playerInventory = this.sanitizeInventory(player.inventory ?? {});
+        const hasLegacyInventory = Object.keys(legacyInventory).length > 0;
+        const hasPlayerInventory = Object.keys(playerInventory).length > 0;
+
+        let inventory = hasPlayerInventory ? playerInventory : legacyInventory;
+
+        if (hasLegacyInventory && hasPlayerInventory) {
+            const legacySnapshot = JSON.stringify(legacyInventory);
+            const playerSnapshot = JSON.stringify(playerInventory);
+            if (legacySnapshot !== playerSnapshot) {
+                console.warn('[storage] inventory mismatch between legacy savedState.inventory and player.inventory. Using player.inventory.', {
+                    legacyInventory,
+                    playerInventory,
+                });
+                inventory = playerInventory;
+            }
+        }
+
         return {
             gold: Number(savedState?.gold ?? player.money ?? 0),
             player: {

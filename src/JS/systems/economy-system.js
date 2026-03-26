@@ -15,7 +15,38 @@ const MIN_INFLATION_FACTOR = 0.5;
 const MAX_INFLATION_FACTOR = 2.5;
 const INFLATION_STEP = 0.05;
 
+const VENDOR_PROFILES = {
+    breeder: { markup: 1.08, buyRate: 0.6, stressSensitivity: 1.1 },
+    arcane: { markup: 1.2, buyRate: 0.55, stressSensitivity: 1 },
+    smuggler: { markup: 1.15, buyRate: 0.5, stressSensitivity: 0.85 },
+};
+
+const RARITY_PRICE_SCALING = {
+    common: 1,
+    uncommon: 1.05,
+    rare: 1.12,
+    veryRare: 1.2,
+    epic: 1.3,
+    legendary: 1.45,
+    unique: 1.65,
+};
+
+export function calculateItemPrices(item, vendorType, reputation, marketState) {
+    const system = new EconomySystem();
+    return system.calculateItemPrices(item, vendorType, reputation, marketState);
+}
+
 export class EconomySystem {
+    resolveVendorType(item) {
+        if (['montura', 'mascota'].includes(item.type) || ['mount', 'pet'].includes(item.entityKind)) return 'breeder';
+        if (['artefacto', 'consumible'].includes(item.type)) return 'arcane';
+        return 'smuggler';
+    }
+
+    getVendorProfile(vendorType = 'smuggler') {
+        return VENDOR_PROFILES[vendorType] ?? VENDOR_PROFILES.smuggler;
+    }
+
     ensureEconomyState(item) {
         return {
             demand: item.economy?.demand ?? 0,
@@ -30,6 +61,33 @@ export class EconomySystem {
 
     getRarityConfig(item) {
         return ITEM_RARITIES[item.rarity] ?? ITEM_RARITIES.common;
+    }
+
+    calculateItemPrices(item, vendorType = 'smuggler', reputation = 0, marketState = {}) {
+        const basePrice = this.getBasePrice(item);
+        const rarityFactor = RARITY_PRICE_SCALING[item.rarity] ?? 1;
+        const economy = this.ensureEconomyState(item);
+        const demandPressure = Number(marketState.demand ?? economy.demand ?? 0);
+        const supplyPressure = Number(marketState.supply ?? economy.supply ?? 0);
+        const stock = Math.max(0, Number(marketState.stock ?? item.stock ?? 0));
+        const stockFactor = stock <= 0 ? 1.2 : Math.min(1.2, Math.max(0.85, 1 + (6 - stock) * 0.025));
+        const demandFactor = Math.min(1.25, Math.max(0.8, 1 + (demandPressure - supplyPressure) * 0.03));
+        const reputationFactor = Math.min(0.15, Math.max(-0.1, reputation * 0.01));
+        const negotiationModifier = Math.min(0.15, Math.max(-0.15, Number(marketState.negotiationModifier ?? 0)));
+        const vendor = this.getVendorProfile(vendorType);
+        const effectiveBase = Math.max(1, basePrice * rarityFactor * stockFactor * demandFactor);
+
+        const vendorMarkup = vendor.markup * (1 - reputationFactor) * (1 + Math.max(0, negotiationModifier));
+        const vendorBuyRate = vendor.buyRate * (1 + reputationFactor * 0.5);
+        let buyPrice = Math.round(effectiveBase * vendorMarkup);
+        let sellPrice = Math.round(effectiveBase * vendorBuyRate);
+
+        if (sellPrice >= buyPrice) sellPrice = Math.floor(buyPrice * 0.8);
+        sellPrice = Math.min(sellPrice, Math.floor(buyPrice * 0.8));
+        sellPrice = Math.max(1, sellPrice);
+        buyPrice = Math.max(sellPrice + 1, buyPrice);
+
+        return { buyPrice, sellPrice };
     }
 
     getPriceRange(item) {
@@ -77,7 +135,8 @@ export class EconomySystem {
     }
 
     estimateMarketValue(item) {
-        return this.getDynamicPrice(item);
+        const vendorType = this.resolveVendorType(item);
+        return this.calculateItemPrices(item, vendorType, 0, { stock: item.stock }).buyPrice;
     }
 
     canAfford(playerMoney, totalPrice) {

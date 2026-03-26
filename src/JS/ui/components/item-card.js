@@ -9,7 +9,7 @@
 
 import { createRarityDots } from './rarity-dots.js';
 
-export function createItemCard({ item, quantity, mode, onSelect, inactive = false, badge = '' }) {
+export function createItemCard({ item, quantity, mode, onSelect, onTalk, inactive = false, badge = '' }) {
     const card = document.createElement('article');
     card.className = `item-card rarity-${item.rarity}${inactive ? ' is-inactive' : ''}`;
     card.innerHTML = `
@@ -31,9 +31,18 @@ export function createItemCard({ item, quantity, mode, onSelect, inactive = fals
             <span class="item-type">${item.type}</span>
             <span class="item-kind">${item.entityKind}</span>
         </div>
+        ${
+            mode === 'buy'
+            ? '<div class="item-actions"><button class="btn btn-secondary item-talk-btn" data-talk>Hablar con Mercader</button></div>'
+            : ''
+        }
     `;
 
     card.querySelector('.rarity-anchor').appendChild(createRarityDots(item.rarity));
     card.addEventListener('click', () => onSelect(item, { inactive }));
+    card.querySelector('[data-talk]')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onTalk?.(item);
+    });
     return card;
 }

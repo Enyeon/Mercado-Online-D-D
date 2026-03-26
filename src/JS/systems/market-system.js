@@ -41,13 +41,17 @@ export class MarketSystem {
         return null;
     }
 
-    buyItem(itemId, quantity, itemsById) {
+    buyItem(itemId, quantity, itemsById, forcedUnitPrice = null) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         if (!item) return { ok: false, reason: 'Entrada no encontrada.' };
         if (Number.isFinite(item.stock) && item.stock < quantity) return { ok: false, reason: 'No hay stock suficiente.' };
 
-        const unitPrice = this.economySystem.estimateMarketValue(item);
+        const vendorType = this.economySystem.resolveVendorType(item);
+        const { buyPrice } = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
+        const unitPrice = Number.isFinite(forcedUnitPrice)
+            ? Math.max(1, Math.round(forcedUnitPrice))
+            : buyPrice;
         const totalCost = quantity * unitPrice;
         if (!this.economySystem.canAfford(state.player.money, totalCost)) return { ok: false, reason: 'No tienes suficiente dinero.' };
 

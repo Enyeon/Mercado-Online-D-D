@@ -60,6 +60,20 @@ export class InventorySlotsSystem {
         return usage;
     }
 
+    getInventoryMetrics(itemsById) {
+        const state = this.store.getState();
+        const excludedIds = this.getEquippedBackpackInventoryIds(state);
+        const usage = countUsageByType(state.player.inventory, itemsById, { excludedIds });
+        const uniqueItemTypes = Object.entries(state.player.inventory)
+            .filter(([itemId, record]) => record?.quantity > 0 && !excludedIds.includes(itemId))
+            .length;
+
+        return {
+            uniqueItemTypes,
+            occupiedSlots: usage.objectUsage,
+        };
+    }
+
     canStore(item, quantity, itemsById) {
         console.group('[inventory] canStore');
         console.log('incoming item', { itemId: item.id, quantity, stackable: item.stackable, slotSize: item.slotSize ?? 1 });

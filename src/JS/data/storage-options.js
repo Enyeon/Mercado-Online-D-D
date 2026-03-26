@@ -419,7 +419,7 @@ export const MOUNTS = [
     /* =============    ÚNICO    ============= */
     { name: 'Mantarraya Astral [Pista]',
         id: 'mount-astral-ray',
-        rarity: 'uique',
+        rarity: 'unique',
         type: 'montura',
         marketBasePrice: 8200,
         stats: { speed: 100, resistance: 9, control: 3 },

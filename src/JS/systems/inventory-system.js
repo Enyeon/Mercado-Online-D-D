@@ -14,6 +14,21 @@ export class InventorySystem {
         this.store = store;
         this.bus = bus;
         this.slotsSystem = slotsSystem;
+        this.operationWindowMs = 120;
+        this.recentOperations = new Map();
+    }
+
+    isDuplicateOperation(type, itemId, quantity) {
+        const now = Date.now();
+        const signature = `${type}:${itemId}:${quantity}`;
+        const previous = this.recentOperations.get(signature);
+        this.recentOperations.set(signature, now);
+
+        for (const [key, timestamp] of this.recentOperations.entries()) {
+            if (now - timestamp > this.operationWindowMs) this.recentOperations.delete(key);
+        }
+
+        return Number.isFinite(previous) && (now - previous) <= this.operationWindowMs;
     }
 
     emitInventoryChanged(itemsById) {
@@ -30,6 +45,11 @@ export class InventorySystem {
         console.log('request', { itemId, quantity });
         console.log('[BEFORE MUTATION]', itemId, quantity, structuredClone(this.store.getState().player.inventory[itemId] ?? null));
         console.trace('[ADD ITEM]', itemId, quantity);
+        if (this.isDuplicateOperation('add', itemId, quantity)) {
+            console.warn('[inventory] duplicated addItem operation blocked', { itemId, quantity });
+            console.groupEnd();
+            return { ok: false, reason: 'Operación duplicada bloqueada.' };
+        }
         const item = itemsById.get(itemId);
         if (!item) {
             console.groupEnd();
@@ -39,7 +59,6 @@ export class InventorySystem {
             console.groupEnd();
             return { ok: false, reason: 'Cantidad inválida.' };
         }
-
 
         const canStore = this.slotsSystem.canStore(item, quantity, itemsById);
         if (!canStore.ok) {
@@ -52,6 +71,7 @@ export class InventorySystem {
             state.player.inventoryOrder = ensureInventoryOrder(state.player.inventoryOrder ?? [], state.player.inventory);
             const mutation = addItemSafe(state.player.inventory, item.id, quantity);
             if (!mutation.ok) return state;
+            if (mutation.capped) console.warn('[inventory] max stack reached', { itemId: item.id, updated: mutation.updated });
             if (!state.player.inventoryOrder.includes(item.id)) state.player.inventoryOrder.push(item.id);
             return state;
         });
@@ -68,6 +88,12 @@ export class InventorySystem {
         console.log('before mutation', this.store.getState().player.inventory);
         console.log('request', { itemId, quantity });
         console.log('[BEFORE MUTATION]', itemId, quantity, structuredClone(this.store.getState().player.inventory[itemId] ?? null));
+        console.trace('[REMOVE ITEM]', itemId, quantity);
+        if (this.isDuplicateOperation('remove', itemId, quantity)) {
+            console.warn('[inventory] duplicated removeItem operation blocked', { itemId, quantity });
+            console.groupEnd();
+            return false;
+        }
         let removed = false;
 
         this.store.update((state) => {

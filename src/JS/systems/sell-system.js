@@ -18,7 +18,8 @@ export class SellSystem {
     }
 
     estimateValue(item) {
-        return this.economySystem.estimateMarketValue(item);
+        const vendorType = this.economySystem.resolveVendorType(item);
+        return this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock }).sellPrice;
     }
 
     sellItem(itemId, quantity, customPrice) {
@@ -28,8 +29,13 @@ export class SellSystem {
         if (!item) return { ok: false, reason: 'Ítem no encontrado.' };
         if (!hasInventory) return { ok: false, reason: 'No tienes suficientes unidades.' };
 
-        const requestedPrice = asPositiveNumber(customPrice, this.estimateValue(item));
-        const unitPrice = this.economySystem.clampPrice(item, requestedPrice, { log: true, reason: 'venta manual fuera de rango' });
+        const vendorType = this.economySystem.resolveVendorType(item);
+        const fairPrices = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
+        const requestedPrice = asPositiveNumber(customPrice, fairPrices.sellPrice);
+        const unitPrice = Math.min(
+            fairPrices.sellPrice,
+            this.economySystem.clampPrice(item, requestedPrice, { log: true, reason: 'venta manual fuera de rango' }),
+        );
         const totalIncome = Math.round(unitPrice * quantity);
         const removed = this.inventorySystem.removeItem(itemId, quantity, new Map(state.market.items.map((entry) => [entry.id, entry])));
         if (!removed) return { ok: false, reason: 'No se pudo vender el ítem.' };
