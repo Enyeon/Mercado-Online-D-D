@@ -39,7 +39,7 @@ export function createItemCard({ item, quantity, mode, onSelect, onTalk, inactiv
     `;
 
     card.querySelector('.rarity-anchor').appendChild(createRarityDots(item.rarity));
-    card.addEventListener('click', () => onSelect(item, { inactive }));
+    card.addEventListener('click', () => onSelect({ itemId: item.id, inactive }));
     card.querySelector('[data-talk]')?.addEventListener('click', (event) => {
         event.stopPropagation();
         onTalk?.(item);

@@ -194,4 +194,3 @@ export class SupabaseGameAPI {
         await this.saveMarket(state.market.items);
     }
 }
-

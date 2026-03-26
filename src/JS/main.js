@@ -33,13 +33,14 @@ import { renderSellView } from './ui/views/sell-view.js';
 import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
 
 const gameApi = new SupabaseGameAPI();
+
 const bootstrapCount = (globalThis.__MARKET_BOOTSTRAP_COUNT__ ?? 0) + 1;
 globalThis.__MARKET_BOOTSTRAP_COUNT__ = bootstrapCount;
 console.log('[BOOTSTRAP]', { bootstrapCount });
 
 const initialInventorySeed = {
     'potion-healer': { quantity: 2, hidden: false },
-    dagger: { quantity: 1, hidden: false },
+    'dagger': { quantity: 1, hidden: false },
 };
 
 const initialState = {
@@ -184,6 +185,19 @@ async function persistState() {
     }
 }
 
+function queueBackendSync(reason = 'state:update') {
+    if (persistQueued || persistInFlight) return;
+
+    persistQueued = true;
+    queueMicrotask(async () => {
+        persistQueued = false;
+        persistInFlight = true;
+        console.log('[MARKET] sync queued', reason);
+        await persistState();
+        persistInFlight = false;
+    });
+}
+
 async function hydrateFromBackend() {
     if (!gameApi.isEnabled()) return;
 
@@ -219,6 +233,7 @@ async function hydrateFromBackend() {
         console.error('[API] hydrateFromBackend failed', error);
     }
 }
+
 
 function renderMoney() {
     els.money.textContent = `${formatCurrency(store.getState().player.money)}`;
@@ -435,8 +450,8 @@ function renderList() {
     console.log('inventory state before render', state.player.inventory);
     const itemsById = getItemsById();
     const inventoryEntries = inventorySystem.getGroupedInventory(itemsById);
-    const selectItem = (item) => {
-        store.patch({ ui: { ...store.getState().ui, selectedItemId: item.id } });
+    const selectItem = ({ itemId }) => {
+        store.patch({ ui: { ...store.getState().ui, selectedItemId: itemId } });
         renderCurrentDetail();
     };
 
@@ -644,6 +659,7 @@ function bindEvents() {
 
     bindTradeEvents();
 
+    store.subscribe(() => queueBackendSync('store:subscribe'));
     bus.on('inventory:changed', () => renderMoney());
 }
 

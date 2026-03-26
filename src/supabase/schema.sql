@@ -109,13 +109,13 @@ language plpgsql
 security definer
 as $$
 begin
-if p_amount < 0 then
-    raise exception 'gold must be >= 0';
-end if;
+    if p_amount < 0 then
+        raise exception 'gold must be >= 0';
+    end if;
 
-update public.players
-set gold = p_amount
-where id = p_player_id;
+    update public.players
+    set gold = p_amount
+    where id = p_player_id;
 end;
 $$;
 
@@ -136,23 +136,23 @@ begin
 
     for row_data in select * from jsonb_array_elements(p_items)
     loop
-    v_item_id := row_data->>'item_id';
-    v_quantity := (row_data->>'quantity')::integer;
+        v_item_id := row_data->>'item_id';
+        v_quantity := (row_data->>'quantity')::integer;
 
-    if v_item_id is null or btrim(v_item_id) = '' then
-        raise exception 'item_id is required';
-    end if;
+        if v_item_id is null or btrim(v_item_id) = '' then
+            raise exception 'item_id is required';
+        end if;
 
-    if v_quantity is null or v_quantity < 0 then
-        raise exception 'quantity must be >= 0';
-    end if;
+        if v_quantity is null or v_quantity < 0 then
+            raise exception 'quantity must be >= 0';
+        end if;
 
-    if v_quantity > 0 then
-        insert into public.inventory (player_id, item_id, quantity)
-        values (p_player_id, v_item_id, v_quantity)
-        on conflict (player_id, item_id)
-        do update set quantity = excluded.quantity;
-    end if;
-end loop;
+        if v_quantity > 0 then
+            insert into public.inventory (player_id, item_id, quantity)
+            values (p_player_id, v_item_id, v_quantity)
+            on conflict (player_id, item_id)
+            do update set quantity = excluded.quantity;
+        end if;
+    end loop;
 end;
 $$;
