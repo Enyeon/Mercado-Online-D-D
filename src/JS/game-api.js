@@ -189,7 +189,7 @@ export class SupabaseGameAPI {
         if (!this.client) return;
 
         await this.ensurePlayer();
-        await this.updateGold(state.player.money);
+        await this.updateGold(state.player.wallet?.legacyGold ?? state.player.money);
         await this.saveInventory(state.player.inventory);
         await this.saveMarket(state.market.items);
     }

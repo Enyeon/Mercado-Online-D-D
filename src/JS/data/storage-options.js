@@ -7,6 +7,115 @@
 
 
 
+export const BASE_ITEMS = [
+    /* =============    COMUNES    ============= */
+    { name: 'Poción de Curación',
+        id: 'potion-healer',
+        description: 'Restaura salud en combate.',
+        rarity: 'common',
+        type: 'consumibles',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+    { name: 'Piel de Lobo',
+        id: 'wolf-pelt',
+        description: 'Material curtido para fabricar equipo ligero.',
+        rarity: 'common',
+        type: 'materiales',
+        marketBasePrice: 15,
+        stock: 50,
+        stackable: true,
+    },
+    { name: 'Daga',
+        id: 'dagger',
+        description: 'Hoja forjada con metal liviano.',
+        rarity: 'common',
+        type: 'armas',
+        marketBasePrice: 10,
+        stock: 10,
+        stackable: false,
+    },
+
+
+    /* =============    POCO COMUNES    ============= */
+    { name: 'Elixir de Maná',
+        id: 'mana-elixir',
+        description: 'Recupera energía arcana en combate.',
+        rarity: 'uncommon',
+        type: 'consumibles',
+        marketBasePrice: 38,
+        stock: 25,
+        stackable: true,
+    },
+
+
+    /* =============    RARO    ============= */
+    { name: 'Espada Colmillo',
+        id: 'fang-sword',
+        description: 'Hoja forjada con colmillos de depredador alfa.',
+        rarity: 'rare',
+        type: 'armas',
+        marketBasePrice: 120,
+        stock: 8,
+        stackable: false,
+    },
+
+
+    /* =============    MUY RARO    ============= */
+    { name: 'Coraza del Guardián',
+        id: 'warden-plate',
+        description: 'Armadura pesada con runas de protección.',
+        rarity: 'veryRare',
+        type: 'armaduras',
+        marketBasePrice: 250,
+        stock: 5,
+        stackable: true,
+    },
+
+
+    /* =============    ÉPICOS    ============= */
+    { name: 'Corona de Cenizas Gemelas',
+        id: 'crown-ashes',
+        description: 'Reliquia mítica nacida de dos dragones primordiales.',
+        rarity: 'epic',
+        type: 'artefactos',
+        marketBasePrice: 1200,
+        stock: 1,
+        stackable: false,
+    },
+    { name: 'Anillo del Juramento (Rika)',
+        id: 'blood-oath-ring-rika',
+        description: 'Objeto único vinculado a una entidad, también usado en bodas.',
+        rarity: 'epic',
+        type: 'artefactos',
+        marketBasePrice: 2500,
+        stock: 1,
+        stackable: false,
+    },
+    { name: 'Anillo del Juramento Carmesí',
+        id: 'blood-oath-ring',
+        description: 'Objeto único vinculado a un único portador, también usado en bodas.',
+        rarity: 'epic',
+        type: 'artefactos',
+        marketBasePrice: 2500,
+        stock: 1,
+        stackable: false,
+    },
+
+
+    /* =============    LEGENDARIAS    ============= */
+    { name: 'Orbe de Ecos Eternos',
+        id: 'orb-of-echoes',
+        description: 'Artefacto que almacena fragmentos de memoria ancestral.',
+        rarity: 'legendary',
+        type: 'artefactos',
+        marketBasePrice: 640,
+        stock: 1,
+        stackable: false,
+    },
+];
+
 export const BACKPACKS = [
     /* =============    COMUNES    ============= */
     { name: 'Mochila Pequeña',
@@ -815,112 +924,3 @@ export const VEHICLES = [
     },
 ];
 
-
-export const BASE_ITEMS = [
-    /* =============    COMUNES    ============= */
-    { name: 'Poción de Curación',
-        id: 'potion-healer',
-        description: 'Restaura salud en combate.',
-        rarity: 'common',
-        type: 'consumibles',
-        marketBasePrice: 10,
-        stock: 20,
-        stackable: true,
-    },
-    { name: 'Piel de Lobo',
-        id: 'wolf-pelt',
-        description: 'Material curtido para fabricar equipo ligero.',
-        rarity: 'common',
-        type: 'materiales',
-        marketBasePrice: 15,
-        stock: 50,
-        stackable: true,
-    },
-    { name: 'Daga',
-        id: 'dagger',
-        description: 'Hoja forjada con metal liviano.',
-        rarity: 'common',
-        type: 'armas',
-        marketBasePrice: 10,
-        stock: 10,
-        stackable: false,
-    },
-
-
-    /* =============    POCO COMUNES    ============= */
-    { name: 'Elixir de Maná',
-        id: 'mana-elixir',
-        description: 'Recupera energía arcana en combate.',
-        rarity: 'uncommon',
-        type: 'consumibles',
-        marketBasePrice: 38,
-        stock: 25,
-        stackable: true,
-    },
-
-
-    /* =============    RARO    ============= */
-    { name: 'Espada Colmillo',
-        id: 'fang-sword',
-        description: 'Hoja forjada con colmillos de depredador alfa.',
-        rarity: 'rare',
-        type: 'armas',
-        marketBasePrice: 120,
-        stock: 8,
-        stackable: false,
-    },
-
-
-    /* =============    MUY RARO    ============= */
-    { name: 'Coraza del Guardián',
-        id: 'warden-plate',
-        description: 'Armadura pesada con runas de protección.',
-        rarity: 'veryRare',
-        type: 'armaduras',
-        marketBasePrice: 250,
-        stock: 5,
-        stackable: true,
-    },
-
-
-    /* =============    ÉPICOS    ============= */
-    { name: 'Corona de Cenizas Gemelas',
-        id: 'crown-ashes',
-        description: 'Reliquia mítica nacida de dos dragones primordiales.',
-        rarity: 'epic',
-        type: 'artefactos',
-        marketBasePrice: 1200,
-        stock: 1,
-        stackable: false,
-    },
-    { name: 'Anillo del Juramento (Rika)',
-        id: 'blood-oath-ring-rika',
-        description: 'Objeto único vinculado a una entidad, también usado en bodas.',
-        rarity: 'epic',
-        type: 'artefactos',
-        marketBasePrice: 2500,
-        stock: 1,
-        stackable: false,
-    },
-    { name: 'Anillo del Juramento Carmesí',
-        id: 'blood-oath-ring',
-        description: 'Objeto único vinculado a un único portador, también usado en bodas.',
-        rarity: 'epic',
-        type: 'artefactos',
-        marketBasePrice: 2500,
-        stock: 1,
-        stackable: false,
-    },
-
-
-    /* =============    LEGENDARIAS    ============= */
-    { name: 'Orbe de Ecos Eternos',
-        id: 'orb-of-echoes',
-        description: 'Artefacto que almacena fragmentos de memoria ancestral.',
-        rarity: 'legendary',
-        type: 'artefactos',
-        marketBasePrice: 640,
-        stock: 1,
-        stackable: false,
-    },
-];

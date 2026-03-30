@@ -8,9 +8,14 @@
 
 
 import { ITEM_RARITIES } from '../data/item-rarities.js';
+import { currencySystem } from '../systems/currency-system.js';
 
-export function formatCurrency(value) {
-    return `${value.toLocaleString('es-ES')} Oro`;
+export function formatCurrency(valueInBaseUnits, options = {}) {
+    return currencySystem.formatCurrency(valueInBaseUnits, options);
+}
+
+export function convertCurrency(value, from, to, systemId) {
+    return currencySystem.convertCurrency(value, from, to, systemId);
 }
 
 export function getRarityLabel(rarityId) {

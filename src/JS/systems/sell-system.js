@@ -10,19 +10,21 @@
 import { asPositiveNumber } from '../utils/validators.js';
 
 export class SellSystem {
-    constructor(store, bus, inventorySystem, economySystem) {
+    constructor(store, bus, inventorySystem, economySystem, currencySystem) {
         this.store = store;
         this.bus = bus;
         this.inventorySystem = inventorySystem;
         this.economySystem = economySystem;
+        this.currencySystem = currencySystem;
     }
 
     estimateValue(item) {
         const vendorType = this.economySystem.resolveVendorType(item);
-        return this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock }).sellPrice;
+        const { sellPrice } = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
+        return this.currencySystem.getItemPriceInBaseUnits(sellPrice);
     }
 
-    sellItem(itemId, quantity, customPrice) {
+    sellItem(itemId, quantity, customPriceBaseUnits) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         const hasInventory = (state.player.inventory[itemId]?.quantity ?? 0) >= quantity;
@@ -31,18 +33,34 @@ export class SellSystem {
 
         const vendorType = this.economySystem.resolveVendorType(item);
         const fairPrices = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
-        const requestedPrice = asPositiveNumber(customPrice, fairPrices.sellPrice);
-        const unitPrice = Math.min(
-            fairPrices.sellPrice,
-            this.economySystem.clampPrice(item, requestedPrice, { log: true, reason: 'venta manual fuera de rango' }),
-        );
-        const totalIncome = Math.round(unitPrice * quantity);
+        const fairPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(fairPrices.sellPrice);
+        const fairPriceLegacyGold = fairPrices.sellPrice;
+
+        const requestedBaseUnits = asPositiveNumber(customPriceBaseUnits, fairPriceBaseUnits);
+        const requestedLegacyGold = this.currencySystem.toLegacyGold(requestedBaseUnits);
+        const clampedLegacyGold = this.economySystem.clampPrice(item, requestedLegacyGold, { log: true, reason: 'venta manual fuera de rango' });
+        const unitPriceLegacyGold = Math.min(fairPriceLegacyGold, clampedLegacyGold);
+        const unitPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(unitPriceLegacyGold);
+        const totalIncomeBaseUnits = Math.round(unitPriceBaseUnits * quantity);
+
+        console.log('[CURRENCY] sellItem conversion', {
+            itemId,
+            quantity,
+            fairPriceLegacyGold,
+            requestedBaseUnits,
+            requestedLegacyGold,
+            unitPriceBaseUnits,
+            totalIncomeBaseUnits,
+        });
+
         const removed = this.inventorySystem.removeItem(itemId, quantity, new Map(state.market.items.map((entry) => [entry.id, entry])));
         if (!removed) return { ok: false, reason: 'No se pudo vender el ítem.' };
 
         this.store.update((draft) => {
             const draftItem = draft.market.items.find((entry) => entry.id === itemId);
-            draft.player.money += totalIncome;
+            draft.player.wallet.baseUnits += totalIncomeBaseUnits;
+            draft.player.wallet = this.currencySystem.serializeWallet(draft.player.wallet);
+            draft.player.money = draft.player.wallet.legacyGold;
             if (draftItem) {
                 draftItem.stock = (draftItem.stock ?? 0) + quantity;
                 draftItem.economy = this.economySystem.applyTransaction(draftItem, 'sell', quantity);
@@ -50,8 +68,8 @@ export class SellSystem {
             return draft;
         });
 
-        this.bus.emit('market:sold', { itemId, quantity, totalIncome, unitPrice });
-        return { ok: true, totalIncome, unitPrice };
+        this.bus.emit('market:sold', { itemId, quantity, totalIncomeBaseUnits, unitPriceBaseUnits });
+        return { ok: true, totalIncomeBaseUnits, unitPriceBaseUnits };
     }
 
     createManualItem(payload, itemsById) {

@@ -17,6 +17,7 @@ import { MarketSystem } from './systems/market-system.js';
 import { SellSystem } from './systems/sell-system.js';
 import { TransportSystem } from './systems/transport-system.js';
 import { createNegotiationState, handlePlayerAction } from './systems/negotiation-system.js';
+import { currencySystem } from './systems/currency-system.js';
 import { SupabaseGameAPI } from './game-api.js';
 import { TradeService } from './trade.js';
 import { setTradeFeedback } from './ui.js';
@@ -58,11 +59,15 @@ const initialState = {
         selectedItemId: null,
         marketFilters: structuredClone(DEFAULT_MARKET_FILTERS),
         negotiation: null,
+        currencySystemId: 'dnd',
     },
     market: {
         items: structuredClone(INITIAL_ITEMS)
     },
 };
+
+initialState.player.wallet = currencySystem.ensurePlayerWallet(initialState.player, initialState.ui.currencySystemId);
+initialState.player.money = initialState.player.wallet.legacyGold;
 
 const bus = new EventBus();
 const store = new StateManager(initialState);
@@ -70,14 +75,16 @@ const economySystem = new EconomySystem();
 const slotsSystem = new InventorySlotsSystem(store);
 const inventorySystem = new InventorySystem(store, bus, slotsSystem);
 const transportSystem = new TransportSystem(store, bus, slotsSystem);
-const marketSystem = new MarketSystem(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem);
-const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem);
+const marketSystem = new MarketSystem(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem, currencySystem);
+const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem, currencySystem);
 const tradeService = new TradeService(inventorySystem, getItemsById);
 
 const els = {
     topbar: document.querySelector('.topbar'),
     layout: document.querySelector('.layout'),
     money: document.querySelector('#player-money'),
+    currencyToggle: document.querySelector('#currency-system-toggle'),
+    currencyMenu: document.querySelector('#currency-system-menu'),
     itemList: document.querySelector('#item-list'),
     detailPanel: document.querySelector('#item-detail'),
     modeBuy: document.querySelector('#mode-buy'),
@@ -161,7 +168,9 @@ let lastPersistedSnapshot = null;
 
 function buildPersistedSnapshot(state) {
     return JSON.stringify({
-        gold: state.player.money,
+        gold: state.player.wallet?.legacyGold ?? state.player.money,
+        walletBaseUnits: state.player.wallet?.baseUnits ?? 0,
+        currencySystemId: state.ui.currencySystemId,
         inventory: state.player.inventory,
         market: state.market.items.map((item) => ({ id: item.id, basePrice: item.basePrice, stock: item.stock })),
     });
@@ -208,7 +217,9 @@ async function hydrateFromBackend() {
         console.log('[bootstrap] hydrated from Supabase', persistedState);
 
         store.update((draft) => {
-            draft.player.money = persistedState.gold;
+            const wallet = currencySystem.ensurePlayerWallet({ money: persistedState.gold, wallet: persistedState.wallet }, draft.ui.currencySystemId);
+            draft.player.wallet = wallet;
+            draft.player.money = wallet.legacyGold;
             draft.player.inventory = persistedState.inventory;
             draft.player.inventoryOrder = Object.keys(persistedState.inventory);
 
@@ -236,7 +247,18 @@ async function hydrateFromBackend() {
 
 
 function renderMoney() {
-    els.money.textContent = `${formatCurrency(store.getState().player.money)}`;
+    const state = store.getState();
+    const systemId = state.ui.currencySystemId;
+    const wallet = currencySystem.ensurePlayerWallet(state.player, systemId);
+    els.money.textContent = `${formatCurrency(wallet.baseUnits, { systemId })}`;
+    if (els.currencyToggle) {
+        const system = currencySystem.getSystem(systemId);
+        els.currencyToggle.textContent = system.icon;
+        els.currencyToggle.title = `Sistema monetario: ${system.label}`;
+    }
+    if (els.currencyMenu) {
+        els.currencyMenu.value = systemId;
+    }
 }
 
 function setMode(mode) {
@@ -254,7 +276,9 @@ function openNegotiation(item) {
         item,
         vendorType,
         reputation: 0,
-        performPurchase: (unitPrice) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPrice),
+        performPurchase: (unitPriceLegacyGold) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPriceLegacyGold),
+        currencySystem,
+        systemId: store.getState().ui.currencySystemId,
     });
     store.patch({ ui: { ...store.getState().ui, negotiation: negotiationState, selectedItemId: item.id } });
     renderApp();
@@ -321,7 +345,7 @@ function executeBuy(item, quantity) {
         if (!equipResult.ok) showMessage(equipResult.reason, 'error');
     }
 
-    showMessage(`Compra realizada por ${formatCurrency(result.totalCost)}.`, 'success');
+    showMessage(`Compra realizada por ${formatCurrency(result.totalCostBaseUnits, { systemId: store.getState().ui.currencySystemId })}.`, 'success');
     renderApp();
 }
 
@@ -329,7 +353,8 @@ function handleBuyDetail(item) {
     renderBuyDetail({
         container: els.detailPanel,
         item,
-        estimatedPrice: economySystem.estimateMarketValue(item),
+        estimatedPrice: currencySystem.getItemPriceInBaseUnits(economySystem.estimateMarketValue(item)),
+        systemId: store.getState().ui.currencySystemId,
         onBuy: async (quantityRaw) => {
             const quantity = asPositiveInt(quantityRaw, 1);
             const warning = marketSystem.getPurchaseWarning(item.id, getItemsById());
@@ -355,12 +380,18 @@ function handleSellDetail(item) {
         item,
         inventoryQty,
         estimatedPrice: sellSystem.estimateValue(item),
+        systemId: store.getState().ui.currencySystemId,
+        unitInputValue: currencySystem.convertFromBaseUnits(sellSystem.estimateValue(item), { systemId: store.getState().ui.currencySystemId, currencyCode: currencySystem.getSystem(store.getState().ui.currencySystemId).baseCurrency }),
+        unitInputLabel: currencySystem.getSystem(store.getState().ui.currencySystemId).baseCurrency,
         onSell: (quantityRaw, customPriceRaw) => {
             const quantity = asPositiveInt(quantityRaw, 1);
-            const customPrice = asPositiveNumber(customPriceRaw, sellSystem.estimateValue(item));
-            const result = sellSystem.sellItem(item.id, quantity, customPrice);
+            const systemId = store.getState().ui.currencySystemId;
+            const baseCurrencyCode = currencySystem.getSystem(systemId).baseCurrency;
+            const customPrice = asPositiveNumber(customPriceRaw, currencySystem.convertFromBaseUnits(sellSystem.estimateValue(item), { systemId, currencyCode: baseCurrencyCode }));
+            const customPriceBaseUnits = currencySystem.convertToBaseUnits(customPrice, { systemId, currencyCode: baseCurrencyCode });
+            const result = sellSystem.sellItem(item.id, quantity, customPriceBaseUnits);
             if (!result.ok) return showMessage(result.reason, 'error');
-            showMessage(`Venta realizada por ${formatCurrency(result.totalIncome)}.`, 'success');
+            showMessage(`Venta realizada por ${formatCurrency(result.totalIncomeBaseUnits, { systemId: store.getState().ui.currencySystemId })}.`, 'success');
             renderApp();
         },
     });
@@ -397,7 +428,7 @@ function renderCurrentDetail() {
                 <li class="detail-line">
                     <span class="label">Valor de mercado</span>
                     <span class="value">
-                        ${formatCurrency(economySystem.estimateMarketValue(selectedItem))}
+                        ${formatCurrency(currencySystem.getItemPriceInBaseUnits(economySystem.estimateMarketValue(selectedItem)), { systemId: state.ui.currencySystemId })}
                     </span>
                 </li>
                 <li class="detail-line">
@@ -428,7 +459,9 @@ function renderCurrentDetail() {
 
             const totalIncome = sellSystem.estimateValue(selectedItem);
             store.update((draft) => {
-                draft.player.money += totalIncome;
+                draft.player.wallet.baseUnits += totalIncome;
+                draft.player.wallet = currencySystem.serializeWallet(draft.player.wallet);
+                draft.player.money = draft.player.wallet.legacyGold;
                 const draftItem = draft.market.items.find((entry) => entry.id === selectedItem.id);
                 if (draftItem) {
                     draftItem.stock = (draftItem.stock ?? 0) + 1;
@@ -436,7 +469,7 @@ function renderCurrentDetail() {
                 }
                 return draft;
             });
-            showMessage(`Mochila vendida por ${formatCurrency(totalIncome)}.`, 'success');
+            showMessage(`Mochila vendida por ${formatCurrency(totalIncome, { systemId: store.getState().ui.currencySystemId })}.`, 'success');
             renderApp();
         });
     }
@@ -533,13 +566,16 @@ function renderNegotiationScreen() {
         container: negotiationRoot,
         state,
         onAction: (action) => {
-            const updated = handlePlayerAction(action, store.getState().ui.negotiation);
+            const updated = handlePlayerAction(action, store.getState().ui.negotiation, {
+                currencySystem,
+                systemId: store.getState().ui.currencySystemId,
+            });
             store.patch({ ui: { ...store.getState().ui, negotiation: updated } });
             if (updated.closed || action === 'leave') {
                 store.patch({ ui: { ...store.getState().ui, negotiation: null } });
             }
             renderApp();
-        },
+        }
     });
 }
 
@@ -624,6 +660,48 @@ function bindTradeEvents() {
     });
 }
 
+function bindCurrencyControls() {
+    if (!els.currencyMenu || !els.currencyToggle) return;
+
+    const systems = currencySystem.getAvailableSystems();
+    els.currencyMenu.innerHTML = systems
+        .map((system) => `<option value="${system.id}">${system.icon} ${system.label}</option>`)
+        .join('');
+
+    const toggleMenu = () => {
+        els.currencyMenu.classList.toggle('hidden');
+    };
+
+    els.currencyToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleMenu();
+    });
+
+    els.currencyMenu.addEventListener('change', (event) => {
+        const nextSystemId = event.target.value;
+        console.info('[CURRENCY] Cambio de sistema activo', { from: store.getState().ui.currencySystemId, to: nextSystemId });
+        store.update((draft) => {
+            draft.ui.currencySystemId = nextSystemId;
+            draft.player.wallet.activeSystemId = nextSystemId;
+            draft.player.wallet = currencySystem.serializeWallet(draft.player.wallet);
+            draft.player.money = draft.player.wallet.legacyGold;
+            return draft;
+        });
+        els.currencyMenu.classList.add('hidden');
+        renderApp();
+    });
+
+    document.addEventListener('click', (event) => {
+        const isClickInside =
+            els.currencyMenu.contains(event.target) ||
+            els.currencyToggle.contains(event.target);
+
+        if (!isClickInside) {
+            els.currencyMenu.classList.add('hidden');
+        }
+    });
+}
+
 function bindEvents() {
     els.modeBuy.addEventListener('click', () => { setMode('buy'); renderApp(); });
     els.modeSell.addEventListener('click', () => { setMode('sell'); renderApp(); });
@@ -654,7 +732,7 @@ function bindEvents() {
             closeModal();
             showMessage(`Se forjó ${result.item.name} x${payload.quantity}.`, 'success');
             renderApp();
-        },
+        }
     });
 
     bindTradeEvents();
@@ -675,6 +753,7 @@ window.addEventListener('unhandledrejection', (event) => {
 slotsSystem.refreshOverflow(getItemsById());
 bindTradePanel();
 bindTradeToggle();
+bindCurrencyControls();
 bindEvents();
 
 window.mercadoDebug = {

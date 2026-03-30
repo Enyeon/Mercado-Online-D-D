@@ -31,6 +31,12 @@ const RARITY_PRICE_SCALING = {
     unique: 1.65,
 };
 
+function normalizeStockValue(rawStock) {
+    if (rawStock === '∞') return Number.POSITIVE_INFINITY;
+    const numericStock = Number(rawStock);
+    return Number.isFinite(numericStock) ? Math.max(0, numericStock) : Number.POSITIVE_INFINITY;
+}
+
 export function calculateItemPrices(item, vendorType, reputation, marketState) {
     const system = new EconomySystem();
     return system.calculateItemPrices(item, vendorType, reputation, marketState);
@@ -69,7 +75,7 @@ export class EconomySystem {
         const economy = this.ensureEconomyState(item);
         const demandPressure = Number(marketState.demand ?? economy.demand ?? 0);
         const supplyPressure = Number(marketState.supply ?? economy.supply ?? 0);
-        const stock = Math.max(0, Number(marketState.stock ?? item.stock ?? 0));
+        const stock = normalizeStockValue(marketState.stock ?? item.stock);
         const stockFactor = stock <= 0 ? 1.2 : Math.min(1.2, Math.max(0.85, 1 + (6 - stock) * 0.025));
         const demandFactor = Math.min(1.25, Math.max(0.8, 1 + (demandPressure - supplyPressure) * 0.03));
         const reputationFactor = Math.min(0.15, Math.max(-0.1, reputation * 0.01));
@@ -139,8 +145,8 @@ export class EconomySystem {
         return this.calculateItemPrices(item, vendorType, 0, { stock: item.stock }).buyPrice;
     }
 
-    canAfford(playerMoney, totalPrice) {
-        return playerMoney >= totalPrice;
+    canAfford(playerBaseUnits, totalPriceBaseUnits) {
+        return playerBaseUnits >= totalPriceBaseUnits;
     }
 
     applyTransaction(item, transactionType, quantity = 1) {

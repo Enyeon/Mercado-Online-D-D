@@ -100,7 +100,7 @@ export const RESPONSES = {
     },
     buy: {
         breeder: {
-            calm: ['Hecho. {item} es tuyo por {price} monedas.'],
+            calm: ['Hecho. {item} es tuyo por {price}.'],
             neutral: ['Tómalo y cuídalo. {price}.'],
             annoyed: ['Paga {price} y termina.'],
             hostile: ['Última oferta: {price}.'],
@@ -131,16 +131,16 @@ function getMood(stress) {
     return STRESS_MOOD.find((entry) => stress <= entry.max)?.mood ?? 'hostile';
 }
 
-function pickResponse(action, vendorType, mood, itemName, currentPrice) {
+function pickResponse(action, vendorType, mood, itemName, currentPriceText) {
     const bucket = RESPONSES[action]?.[vendorType]?.[mood]
         ?? RESPONSES[action]?.[vendorType]?.neutral
         ?? ['...'];
     return bucket[0]
         .replace('{item}', itemName)
-        .replace('{price}', currentPrice);
+        .replace('{price}', currentPriceText);
 }
 
-function clampPriceState(state, nextModifier) {
+function clampPriceState(state, nextModifier, currencySystem) {
     const prices = calculateItemPrices(state.item, state.vendorType, state.reputation, {
         stock: state.item.stock,
         demand: state.item.economy?.demand ?? 0,
@@ -149,13 +149,15 @@ function clampPriceState(state, nextModifier) {
     });
     return {
         prices,
+        currentPriceBaseUnits: currencySystem.getItemPriceInBaseUnits(prices.buyPrice),
         modifier: Math.min(0.15, Math.max(-0.15, nextModifier)),
     };
 }
 
-export function createNegotiationState({ item, vendorType, reputation = 0, performPurchase }) {
+export function createNegotiationState({ item, vendorType, reputation = 0, performPurchase, currencySystem, systemId }) {
     const vendor = VENDORS[vendorType] ?? VENDORS.smuggler;
     const { buyPrice } = calculateItemPrices(item, vendorType, reputation, { stock: item.stock });
+    const buyPriceBaseUnits = currencySystem.getItemPriceInBaseUnits(buyPrice);
     return {
         item,
         vendorType,
@@ -163,19 +165,20 @@ export function createNegotiationState({ item, vendorType, reputation = 0, perfo
         messages: [{
             speaker: 'vendor',
             name: vendor.name,
-            text: `Bienvenido. Hablemos de ${item.name}. Precio inicial: ${buyPrice} monedas.`,
+            text: `Bienvenido. Hablemos de ${item.name}. Precio inicial: ${currencySystem.formatCurrency(buyPriceBaseUnits, { systemId })}.`,
         }],
         stress: vendor.stress,
         mood: getMood(vendor.stress),
         reputation,
-        currentPrice: buyPrice,
+        currentPriceLegacyGold: buyPrice,
+        currentPriceBaseUnits: buyPriceBaseUnits,
         negotiationModifier: 0,
         performPurchase,
         closed: false,
     };
 }
 
-export function handlePlayerAction(action, state) {
+export function handlePlayerAction(action, state, { currencySystem, systemId }) {
     if (!PLAYER_ACTIONS.includes(action) || state.closed) return state;
     const next = {
         ...state,
@@ -203,14 +206,19 @@ export function handlePlayerAction(action, state) {
     next.reputation = Math.min(20, Math.max(-20, next.reputation + reputationDelta));
     next.mood = getMood(next.stress);
 
-    const pricing = clampPriceState(next, next.negotiationModifier + modifierDelta);
+    const pricing = clampPriceState(next, next.negotiationModifier + modifierDelta, currencySystem);
     next.negotiationModifier = pricing.modifier;
-    next.currentPrice = pricing.prices.buyPrice;
+    next.currentPriceLegacyGold = pricing.prices.buyPrice;
+    next.currentPriceBaseUnits = pricing.currentPriceBaseUnits;
 
     if (action === 'buy') {
-        const result = next.performPurchase?.(next.currentPrice);
+        const result = next.performPurchase?.(next.currentPriceLegacyGold);
         if (result?.ok) {
-            next.messages.push({ speaker: 'vendor', name: next.vendor.name, text: pickResponse('buy', next.vendorType, next.mood, next.item.name, next.currentPrice) });
+            next.messages.push({
+                speaker: 'vendor',
+                name: next.vendor.name,
+                text: pickResponse('buy', next.vendorType, next.mood, next.item.name, currencySystem.formatCurrency(next.currentPriceBaseUnits, { systemId })),
+            });
             next.closed = true;
             return next;
         }
@@ -218,15 +226,7 @@ export function handlePlayerAction(action, state) {
         return next;
     }
 
-    if (action === 'leave') {
-        next.messages.push({ speaker: 'vendor', name: next.vendor.name, text: 'Que los caminos te alejen del regateo.' });
-        return next;
-    }
-
-    next.messages.push({
-        speaker: 'vendor',
-        name: next.vendor.name,
-        text: pickResponse(action, next.vendorType, next.mood, next.item.name, next.currentPrice),
-    });
+    const response = pickResponse(action, next.vendorType, next.mood, next.item.name, currencySystem.formatCurrency(next.currentPriceBaseUnits, { systemId }));
+    next.messages.push({ speaker: 'vendor', name: next.vendor.name, text: response });
     return next;
 }

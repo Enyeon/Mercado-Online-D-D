@@ -1,0 +1,214 @@
+
+
+
+
+
+
+
+
+
+const CURRENCY_SYSTEMS = {
+    dnd: {
+        id: 'dnd',
+        label: 'D&D',
+        icon: '🪙',
+        baseCurrency: 'cp',
+        currencies: [
+            { code: 'cp', label: 'Cobre', short: 'cp', ratioToBase: 1 },
+            { code: 'sp', label: 'Plata', short: 'sp', ratioToBase: 10 },
+            { code: 'ep', label: 'Electro', short: 'ep', ratioToBase: 50 },
+            { code: 'gp', label: 'Oro', short: 'gp', ratioToBase: 100 },
+            { code: 'pp', label: 'Platino', short: 'pp', ratioToBase: 1000 },
+        ],
+    },
+    worldElemental: {
+        id: 'worldElemental',
+        label: 'World Elemental',
+        icon: '🔮',
+        baseCurrency: 'cen',
+        currencies: [
+            { code: 'cen', label: 'Cen', short: 'Cen', ratioToBase: 1 },
+            { code: 'census', label: 'Census', short: 'Census', ratioToBase: 1000 },
+            { code: 'cenrrus', label: 'Cenrrus', short: 'Cenrrus', ratioToBase: 1000000 },
+        ],
+    },
+    usd: {
+        id: 'usd',
+        label: 'USD',
+        icon: '💵',
+        baseCurrency: 'usd',
+        currencies: [
+            { code: 'usd', label: 'USD', short: 'USD', ratioToBase: 1, symbol: '$' },
+        ],
+    },
+};
+
+const LEGACY_GOLD_CODE = 'gp';
+
+function getSystemConfig(systemId) {
+    return CURRENCY_SYSTEMS[systemId] ?? CURRENCY_SYSTEMS.dnd;
+}
+
+function getCurrencyConfig(systemId, code) {
+    return getSystemConfig(systemId).currencies.find((entry) => entry.code === code) ?? null;
+}
+
+function asInteger(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+}
+
+export class CurrencySystem {
+    constructor({ defaultSystemId = 'dnd' } = {}) {
+        this.defaultSystemId = defaultSystemId;
+        this.legacyPriceCurrencyCode = LEGACY_GOLD_CODE;
+    }
+
+    getAvailableSystems() {
+        return Object.values(CURRENCY_SYSTEMS);
+    }
+
+    getSystem(systemId = this.defaultSystemId) {
+        return getSystemConfig(systemId);
+    }
+
+    getNextSystemId(currentId = this.defaultSystemId) {
+        const ids = this.getAvailableSystems().map((entry) => entry.id);
+        const index = ids.indexOf(currentId);
+        return ids[(index + 1) % ids.length] ?? this.defaultSystemId;
+    }
+
+    convertCurrency(value, fromCode, toCode, systemId = this.defaultSystemId) {
+        const from = getCurrencyConfig(systemId, fromCode);
+        const to = getCurrencyConfig(systemId, toCode);
+        if (!from || !to) {
+            console.error('[CURRENCY] Conversión inválida', { value, fromCode, toCode, systemId });
+            return asInteger(value, 0);
+        }
+
+        const baseAmount = asInteger(value, 0) * from.ratioToBase;
+        const converted = Math.trunc(baseAmount / to.ratioToBase);
+        console.log('[CURRENCY] convertCurrency', { value, fromCode, toCode, systemId, baseAmount, converted });
+        return converted;
+    }
+
+    formatCurrency(valueInBaseUnits, { systemId = this.defaultSystemId } = {}) {
+        const system = getSystemConfig(systemId);
+        const amount = Math.max(0, asInteger(valueInBaseUnits, 0));
+
+        if (system.id === 'usd') {
+            const usd = this.convertFromBaseUnits(amount, { systemId: 'usd', currencyCode: 'usd' });
+            return `$${usd.toLocaleString('en-US')}`;
+        }
+
+        const normalized = this.normalizeBalances(amount, system.id);
+        const parts = system.currencies
+            .slice()
+            .sort((a, b) => b.ratioToBase - a.ratioToBase)
+            .map((currency) => ({ currency, amount: normalized[currency.code] ?? 0 }))
+            .filter((entry) => entry.amount > 0)
+            .map((entry) => `${entry.amount.toLocaleString('es-ES')} ${entry.currency.short}`);
+
+        return parts.length ? parts.join(', ') : `0 ${system.currencies[0].short}`;
+    }
+
+    convertToBaseUnits(amount, { systemId = this.defaultSystemId, currencyCode } = {}) {
+        const system = getSystemConfig(systemId);
+        const sourceCode = currencyCode ?? system.baseCurrency;
+        const currency = getCurrencyConfig(system.id, sourceCode);
+        if (!currency) {
+            console.error('[CURRENCY] Moneda inválida para convertToBaseUnits', { amount, systemId: system.id, sourceCode });
+            return 0;
+        }
+        return Math.max(0, asInteger(amount, 0) * currency.ratioToBase);
+    }
+
+    convertFromBaseUnits(baseUnits, { systemId = this.defaultSystemId, currencyCode } = {}) {
+        const system = getSystemConfig(systemId);
+        const targetCode = currencyCode ?? system.baseCurrency;
+        const currency = getCurrencyConfig(system.id, targetCode);
+        if (!currency) {
+            console.error('[CURRENCY] Moneda inválida para convertFromBaseUnits', { baseUnits, systemId: system.id, targetCode });
+            return 0;
+        }
+        return Math.trunc(Math.max(0, asInteger(baseUnits, 0)) / currency.ratioToBase);
+    }
+
+    normalizeBalances(baseUnits, systemId = this.defaultSystemId) {
+        const system = getSystemConfig(systemId);
+        let remainder = Math.max(0, asInteger(baseUnits, 0));
+        const balances = {};
+
+        const sorted = system.currencies.slice().sort((a, b) => b.ratioToBase - a.ratioToBase);
+        sorted.forEach((currency, index) => {
+            if (index === sorted.length - 1) {
+                balances[currency.code] = remainder;
+                return;
+            }
+            const quantity = Math.trunc(remainder / currency.ratioToBase);
+            balances[currency.code] = quantity;
+            remainder -= quantity * currency.ratioToBase;
+        });
+
+        return balances;
+    }
+
+    parseWallet(playerState, activeSystemId = this.defaultSystemId) {
+        const legacyMoney = asInteger(playerState?.money, 0);
+        const wallet = playerState?.wallet;
+
+        if (wallet?.version === 1 && Number.isFinite(wallet.baseUnits)) {
+            return {
+                version: 1,
+                activeSystemId: wallet.activeSystemId ?? activeSystemId,
+                baseUnits: Math.max(0, asInteger(wallet.baseUnits, 0)),
+                balancesBySystem: wallet.balancesBySystem ?? {},
+            };
+        }
+
+        const migratedBase = this.convertToBaseUnits(legacyMoney, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
+        console.info('[CURRENCY] Migración automática desde legacy gold -> wallet', { legacyMoney, migratedBase });
+
+        return {
+            version: 1,
+            activeSystemId,
+            baseUnits: migratedBase,
+            balancesBySystem: {},
+        };
+    }
+
+    serializeWallet(wallet) {
+        const activeSystemId = wallet?.activeSystemId ?? this.defaultSystemId;
+        const baseUnits = Math.max(0, asInteger(wallet?.baseUnits, 0));
+        return {
+            version: 1,
+            activeSystemId,
+            baseUnits,
+            balancesBySystem: this.getAvailableSystems().reduce((acc, system) => {
+                acc[system.id] = this.normalizeBalances(baseUnits, system.id);
+                return acc;
+            }, {}),
+            legacyGold: this.convertFromBaseUnits(baseUnits, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE }),
+        };
+    }
+
+    ensurePlayerWallet(playerState, fallbackSystemId = this.defaultSystemId) {
+        const wallet = this.parseWallet(playerState, fallbackSystemId);
+        return this.serializeWallet(wallet);
+    }
+
+    getBalanceForDisplay(playerState, systemId) {
+        const wallet = this.parseWallet(playerState, systemId ?? playerState?.wallet?.activeSystemId ?? this.defaultSystemId);
+        return this.formatCurrency(wallet.baseUnits, { systemId: systemId ?? wallet.activeSystemId });
+    }
+
+    getItemPriceInBaseUnits(legacyPriceInGold) {
+        return this.convertToBaseUnits(legacyPriceInGold, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
+    }
+
+    toLegacyGold(baseUnits) {
+        return this.convertFromBaseUnits(baseUnits, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
+    }
+}
+
+export const currencySystem = new CurrencySystem();

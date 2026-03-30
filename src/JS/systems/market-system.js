@@ -8,13 +8,14 @@
 
 
 export class MarketSystem {
-    constructor(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem) {
+    constructor(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem, currencySystem) {
         this.store = store;
         this.bus = bus;
         this.inventorySystem = inventorySystem;
         this.economySystem = economySystem;
         this.transportSystem = transportSystem;
         this.slotsSystem = slotsSystem;
+        this.currencySystem = currencySystem;
     }
 
     getPurchaseWarning(itemId, itemsById) {
@@ -41,7 +42,7 @@ export class MarketSystem {
         return null;
     }
 
-    buyItem(itemId, quantity, itemsById, forcedUnitPrice = null) {
+    buyItem(itemId, quantity, itemsById, forcedUnitPriceLegacyGold = null) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         if (!item) return { ok: false, reason: 'Entrada no encontrada.' };
@@ -49,11 +50,24 @@ export class MarketSystem {
 
         const vendorType = this.economySystem.resolveVendorType(item);
         const { buyPrice } = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
-        const unitPrice = Number.isFinite(forcedUnitPrice)
-            ? Math.max(1, Math.round(forcedUnitPrice))
+        const unitPriceLegacyGold = Number.isFinite(forcedUnitPriceLegacyGold)
+            ? Math.max(1, Math.round(forcedUnitPriceLegacyGold))
             : buyPrice;
-        const totalCost = quantity * unitPrice;
-        if (!this.economySystem.canAfford(state.player.money, totalCost)) return { ok: false, reason: 'No tienes suficiente dinero.' };
+
+        const unitPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(unitPriceLegacyGold);
+        const totalCostBaseUnits = quantity * unitPriceBaseUnits;
+        const wallet = this.currencySystem.parseWallet(state.player, state.ui.currencySystemId);
+
+        console.log('[CURRENCY] buyItem conversion', {
+            itemId,
+            quantity,
+            unitPriceLegacyGold,
+            unitPriceBaseUnits,
+            totalCostBaseUnits,
+            playerBaseUnits: wallet.baseUnits,
+        });
+
+        if (!this.economySystem.canAfford(wallet.baseUnits, totalCostBaseUnits)) return { ok: false, reason: 'No tienes suficiente dinero.' };
 
         if (['item', 'mountPack', 'pet'].includes(item.entityKind)) {
             const addResult = this.inventorySystem.addItem(itemId, quantity, itemsById);
@@ -64,7 +78,9 @@ export class MarketSystem {
             const draftItem = draft.market.items.find((entry) => entry.id === itemId);
             if (draftItem && typeof draftItem.stock === 'number') draftItem.stock -= quantity;
             if (draftItem) draftItem.economy = this.economySystem.applyTransaction(draftItem, 'buy', quantity);
-            draft.player.money -= totalCost;
+            draft.player.wallet.baseUnits = Math.max(0, draft.player.wallet.baseUnits - totalCostBaseUnits);
+            draft.player.wallet = this.currencySystem.serializeWallet(draft.player.wallet);
+            draft.player.money = draft.player.wallet.legacyGold;
             return draft;
         });
 
@@ -72,7 +88,7 @@ export class MarketSystem {
         if (item.entityKind === 'mount') this.transportSystem.purchaseMount(item);
         if (item.entityKind === 'vehicle') this.transportSystem.purchaseVehicle(item);
 
-        this.bus.emit('market:bought', { itemId, quantity, totalCost, unitPrice });
-        return { ok: true, totalCost, unitPrice };
+        this.bus.emit('market:bought', { itemId, quantity, totalCostBaseUnits, unitPriceBaseUnits });
+        return { ok: true, totalCostBaseUnits, unitPriceBaseUnits };
     }
 }

@@ -84,47 +84,17 @@ function renderExtraSection(item) {
     switch (item.entityKind) {
         case 'backpack':
             return renderBackpackStats(item);
-
         case 'mount':
             return renderMountStats(item);
-
         case 'vehicle':
             return renderVehicleStats(item);
-
         default:
             return '';
     }
 }
 
-export function renderBuyDetail({ container, item, estimatedPrice, onBuy }) {
-    const extra = [];
+export function renderBuyDetail({ container, item, estimatedPrice, onBuy, systemId }) {
     const maxStock = Number.isFinite(item.stock) ? item.stock : null;
-
-    if (item.entityKind === 'backpack') {
-        extra.push({
-            label: 'Capacidad',
-            value: `+${item.objectSlots} objetos | +${item.weaponSlots} armas`
-        });
-    }
-
-    if (item.entityKind === 'mount') {
-        extra.push({
-            label1: 'Velocidad',
-            label2: 'Resistencia',
-            label3: 'Control',
-            value1: `${item.stats.speed}`,
-            value2: `${item.stats.resistance}`,
-            value3: `${item.stats.control}`,
-        });
-    }
-
-    if (item.entityKind === 'vehicle') {
-        extra.push({
-            label: 'Almacenamiento',
-            value: `${item.storage.objectSlots} obj / ${item.storage.weaponSlots} armas`
-        });
-    }
-
     container.innerHTML = `
         <header class="mite-header rarity-${item.rarity}">
             <h2 class="item-title">${item.name}</h2>
@@ -141,7 +111,7 @@ export function renderBuyDetail({ container, item, estimatedPrice, onBuy }) {
 
             <li class="detail-line highlight">
                 <span class="label">Precio</span>
-                <strong class="value gold">${formatCurrency(estimatedPrice)}</strong>
+                <strong class="value gold">${formatCurrency(estimatedPrice, { systemId })}</strong>
             </li>
 
             <li class="detail-line">
@@ -174,7 +144,7 @@ export function renderBuyDetail({ container, item, estimatedPrice, onBuy }) {
     });
 }
 
-export function renderSellDetail({ container, item, inventoryQty, estimatedPrice, onSell }) {
+export function renderSellDetail({ container, item, inventoryQty, estimatedPrice, onSell, systemId, unitInputValue, unitInputLabel }) {
     container.innerHTML = `
         <div class="detail-header rarity-${item.rarity}">
             <h2 class="item-title">${item.name}</h2>
@@ -191,7 +161,7 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
 
             <li class="detail-line highlight">
                 <span class="label">Valor estimado</span>
-                <strong class="value gold">${formatCurrency(estimatedPrice)}</strong>
+                <strong class="value gold">${formatCurrency(estimatedPrice, { systemId })}</strong>
             </li>
 
             <li class="detail-line">
@@ -204,8 +174,8 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
             <label for="sell-quantity" class="input-label">Cantidad</label>
             <input id="sell-quantity" class="form-input" type="number" min="1" max="${inventoryQty}" value="1">
 
-            <label for="sell-price" class="input-label">Precio unitario</label>
-            <input id="sell-price" class="form-input" type="number" min="1" value="${estimatedPrice}">
+            <label for="sell-price" class="input-label">Precio unitario (${unitInputLabel})</label>
+            <input id="sell-price" class="form-input" type="number" min="1" value="${unitInputValue}">
 
             <button id="sell-confirm" class="btn btn-terciary top-btn">Publicar venta</button>
         </div>
@@ -214,7 +184,7 @@ export function renderSellDetail({ container, item, inventoryQty, estimatedPrice
     container.querySelector('.detail-rarity').appendChild(createRarityDots(item.rarity));
     container.querySelector('#sell-confirm')?.addEventListener('click', () => {
         const quantity = Number.parseInt(container.querySelector('#sell-quantity').value, 10) || 1;
-        const price = Number.parseFloat(container.querySelector('#sell-price').value) || estimatedPrice;
+        const price = Number.parseFloat(container.querySelector('#sell-price').value) || unitInputValue;
         onSell(quantity, price);
     });
 }

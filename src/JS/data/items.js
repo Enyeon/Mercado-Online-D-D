@@ -16,8 +16,6 @@ import {
     PETS,
 } from './storage-options.js';
 
-import { normalizeItemDefinition } from '../inventory.js';
-
 export const ITEM_TYPES = [
     'material',
     'arma',

@@ -8,6 +8,7 @@
 
 
 import { PLAYER_ACTIONS } from '../../systems/negotiation-system.js';
+import { formatCurrency } from '../../utils/formatters.js';
 
 function renderMessage(message) {
     const roleClass = message.speaker === 'vendor' ? 'vendor' : 'player';
@@ -20,12 +21,12 @@ function renderMessage(message) {
     `;
 }
 
-export function renderNegotiationView(item, vendorType, { container, state, onAction }) {
+export function renderNegotiationView(item, vendorType, { container, state, onAction, systemId }) {
     container.innerHTML = `
         <section class="negotiation-shell">
             <header class="negotiation-header">
                 <h2>Negociación: ${item.name}</h2>
-                <p>Mercader: ${state.vendor.name} · Humor: ${state.mood} · Precio actual: ${state.currentPrice} monedas</p>
+                <p>Mercader: ${state.vendor.name} · Humor: ${state.mood} · Precio actual: ${formatCurrency(state.currentPriceBaseUnits, { systemId })}</p>
             </header>
             <div class="negotiation-chat">
                 ${state.messages.map(renderMessage).join('')}
