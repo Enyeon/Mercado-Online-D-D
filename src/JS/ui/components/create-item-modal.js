@@ -31,12 +31,15 @@ export function bindCreateItemModal({ modal, openButton, onConfirm, onClose }) {
         event.preventDefault();
         const data = new FormData(form);
         onConfirm({
+            itemMode: String(data.get('itemMode') ?? 'new').trim(),
+            existingQuery: String(data.get('existingQuery') ?? '').trim(),
             name: String(data.get('name-objet') ?? '').trim(),
             description: String(data.get('description') ?? '').trim(),
             type: String(data.get('type') ?? '').trim(),
             rarity: String(data.get('rarity') ?? '').trim(),
             quantity: Number.parseInt(String(data.get('quantity') ?? '1'), 10),
             basePrice: Number.parseFloat(String(data.get('basePrice') ?? '1')),
+            priceModifierPercent: Number.parseFloat(String(data.get('priceModifierPercent') ?? '0')),
             stackable: data.get('stackable') === 'on',
             slotSize: Number.parseInt(String(data.get('slotSize') ?? '1'), 10),
         }, close);

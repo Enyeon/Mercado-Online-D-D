@@ -11,7 +11,7 @@ import { createItemCard } from '../components/item-card.js';
 import { filterAndSortMarketItems } from '../../utils/market-filters.js';
 import { setListContainerLayout } from '../../utils/list-container.js';
 
-export function renderMarketView({ container, items, filters, onSelect, onTalk }) {
+export function renderMarketView({ container, items, filters, onSelect }) {
     setListContainerLayout(container, 'item-list');
     container.innerHTML = '';
     const filtered = filterAndSortMarketItems(items, filters);
@@ -22,7 +22,7 @@ export function renderMarketView({ container, items, filters, onSelect, onTalk }
     }
 
     const fragment = document.createDocumentFragment();
-    filtered.forEach((item) => fragment.appendChild(createItemCard({ item, mode: 'buy', onSelect, onTalk })));
+    filtered.forEach((item) => fragment.appendChild(createItemCard({ item, mode: 'buy', onSelect })));
     container.appendChild(fragment);
 
     console.log([...container.children].map(el => el.className));

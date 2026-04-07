@@ -80,11 +80,10 @@ export class EconomySystem {
         const stockFactor = stock <= 0 ? 1.2 : Math.min(1.2, Math.max(0.85, 1 + (6 - stock) * 0.025));
         const demandFactor = Math.min(1.25, Math.max(0.8, 1 + (demandPressure - supplyPressure) * 0.03));
         const reputationFactor = Math.min(0.15, Math.max(-0.1, reputation * 0.01));
-        const negotiationModifier = Math.min(0.15, Math.max(-0.15, Number(marketState.negotiationModifier ?? 0)));
         const vendor = this.getVendorProfile(vendorType);
         const effectiveBase = Math.max(1, basePrice * rarityFactor * stockFactor * demandFactor);
 
-        const vendorMarkup = vendor.markup * (1 - reputationFactor) * (1 + Math.max(0, negotiationModifier));
+        const vendorMarkup = vendor.markup * (1 - reputationFactor);
         const vendorBuyRate = vendor.buyRate * (1 + reputationFactor * 0.5);
         let buyPrice = Math.round(effectiveBase * vendorMarkup);
         let sellPrice = Math.round(effectiveBase * vendorBuyRate);

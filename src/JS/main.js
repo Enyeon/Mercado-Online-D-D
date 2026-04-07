@@ -16,8 +16,10 @@ import { InventorySlotsSystem } from './systems/inventory-slots-system.js';
 import { MarketSystem } from './systems/market-system.js';
 import { SellSystem } from './systems/sell-system.js';
 import { TransportSystem } from './systems/transport-system.js';
-import { createNegotiationState, handlePlayerAction } from './systems/negotiation-system.js';
 import { currencySystem } from './systems/currency-system.js';
+import { marketEngine } from './systems/marketEngine.js';
+import { tradeEngine } from './systems/tradeEngine.js';
+import { itemEngine } from './systems/itemEngine.js';
 import { SupabaseGameAPI } from './game-api.js';
 import { TradeService } from './trade.js';
 import { setTradeFeedback } from './ui.js';
@@ -29,7 +31,6 @@ import { renderFilters } from './ui/components/filters-bar.js';
 import { renderBuyDetail, renderDetailPlaceholder, renderSellDetail } from './ui/components/detail-panel.js';
 import { renderInventoryView } from './ui/views/inventory-view.js';
 import { renderMarketView } from './ui/views/market-view.js';
-import { renderNegotiationView } from './ui/views/negotiation-view.js';
 import { renderSellView } from './ui/views/sell-view.js';
 import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
 
@@ -58,11 +59,12 @@ const initialState = {
         marketSection: 'all',
         selectedItemId: null,
         marketFilters: structuredClone(DEFAULT_MARKET_FILTERS),
-        negotiation: null,
         currencySystemId: 'dnd',
     },
     market: {
-        items: structuredClone(INITIAL_ITEMS)
+        currentTick: 0,
+        items: structuredClone(INITIAL_ITEMS).map((item) => ({ ...item, maxStock: Number.isFinite(item.maxStock) ? item.maxStock : Math.max(1, Number(item.stock ?? 1)) })),
+        listings: [],
     },
 };
 
@@ -76,7 +78,7 @@ const slotsSystem = new InventorySlotsSystem(store);
 const inventorySystem = new InventorySystem(store, bus, slotsSystem);
 const transportSystem = new TransportSystem(store, bus, slotsSystem);
 const marketSystem = new MarketSystem(store, bus, inventorySystem, economySystem, transportSystem, slotsSystem, currencySystem);
-const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem, currencySystem);
+const sellSystem = new SellSystem(store, bus, inventorySystem, economySystem, currencySystem, tradeEngine);
 const tradeService = new TradeService(inventorySystem, getItemsById);
 
 const els = {
@@ -106,11 +108,6 @@ const els = {
     tradeExportSelected: document.querySelector('[data-export-selected]'),
     tradeImport: document.querySelector('[data-import-items]'),
 };
-
-const negotiationRoot = document.createElement('section');
-negotiationRoot.id = 'negotiation-view';
-negotiationRoot.className = 'negotiation-view hidden';
-document.body.appendChild(negotiationRoot);
 
 const askWarning = bindWarningModal(els.warningModal);
 
@@ -265,23 +262,8 @@ function setMode(mode) {
     store.update((state) => {
         state.ui.mode = mode;
         state.ui.selectedItemId = null;
-        state.ui.negotiation = null;
         return state;
     });
-}
-
-function openNegotiation(item) {
-    const vendorType = economySystem.resolveVendorType(item);
-    const negotiationState = createNegotiationState({
-        item,
-        vendorType,
-        reputation: 0,
-        performPurchase: (unitPriceBaseUnits) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPriceBaseUnits),
-        currencySystem,
-        systemId: store.getState().ui.currencySystemId,
-    });
-    store.patch({ ui: { ...store.getState().ui, negotiation: negotiationState, selectedItemId: item.id } });
-    renderApp();
 }
 
 function renderTransportAndCapacity() {
@@ -389,9 +371,9 @@ function handleSellDetail(item) {
             const baseCurrencyCode = currencySystem.getSystem(systemId).baseCurrency;
             const customPrice = asPositiveNumber(customPriceRaw, currencySystem.convertFromBaseUnits(sellSystem.estimateValue(item), { systemId, currencyCode: baseCurrencyCode }));
             const customPriceBaseUnits = currencySystem.convertToBaseUnits(customPrice, { systemId, currencyCode: baseCurrencyCode });
-            const result = sellSystem.sellItem(item.id, quantity, customPriceBaseUnits);
+            const result = sellSystem.publishListing(item.id, quantity, customPriceBaseUnits);
             if (!result.ok) return showMessage(result.reason, 'error');
-            showMessage(`Venta realizada por ${formatCurrency(result.totalIncomeBaseUnits, { systemId: store.getState().ui.currencySystemId })}.`, 'success');
+            showMessage(`Publicación creada. Probabilidad de venta: ${Math.round(result.listing.probability * 100)}%.`, 'success');
             renderApp();
         },
     });
@@ -494,7 +476,6 @@ function renderList() {
             items: state.market.items,
             filters: state.ui.marketFilters,
             onSelect: selectItem,
-            onTalk: openNegotiation,
         });
     }
 
@@ -537,12 +518,7 @@ function renderList() {
 }
 
 function renderModeUI() {
-    const negotiation = store.getState().ui.negotiation;
     const mode = store.getState().ui.mode;
-    const hasNegotiation = Boolean(negotiation);
-    els.topbar.classList.toggle('hidden', hasNegotiation);
-    els.layout.classList.toggle('hidden', hasNegotiation);
-    negotiationRoot.classList.toggle('hidden', !hasNegotiation);
 
     els.modeBuy.classList.toggle('active', mode === 'buy');
     els.modeSell.classList.toggle('active', mode === 'sell');
@@ -553,30 +529,6 @@ function renderModeUI() {
     els.toggleTrade.classList.toggle('hidden', mode !== 'inventory');
     els.openTradeBtn.classList.toggle('hidden', mode !== 'inventory');
     els.marketSection.classList.add('hidden');
-}
-
-function renderNegotiationScreen() {
-    const state = store.getState().ui.negotiation;
-    if (!state) {
-        negotiationRoot.innerHTML = '';
-        return;
-    }
-
-    renderNegotiationView(state.item, state.vendorType, {
-        container: negotiationRoot,
-        state,
-        onAction: (action) => {
-            const updated = handlePlayerAction(action, store.getState().ui.negotiation, {
-                currencySystem,
-                systemId: store.getState().ui.currencySystemId,
-            });
-            store.patch({ ui: { ...store.getState().ui, negotiation: updated } });
-            if (updated.closed || action === 'leave') {
-                store.patch({ ui: { ...store.getState().ui, negotiation: null } });
-            }
-            renderApp();
-        }
-    });
 }
 
 function renderFilterUI() {
@@ -591,11 +543,8 @@ function renderApp() {
     renderMoney();
     renderModeUI();
     renderFilterUI();
-    renderNegotiationScreen();
-    if (!store.getState().ui.negotiation) {
-        renderList();
-        renderCurrentDetail();
-    }
+    renderList();
+    renderCurrentDetail();
 }
 
 function bindTradeEvents() {
@@ -722,11 +671,32 @@ function bindEvents() {
         modal: els.createItemModal,
         openButton: els.createItemBtn,
         onConfirm: (payload, closeModal) => {
-            if (!payload.name || !payload.description || payload.quantity <= 0 || payload.basePrice <= 0 || payload.slotSize <= 0) {
+            if (payload.quantity <= 0 || payload.slotSize <= 0) {
                 return showMessage('El ritual de creación falló: revisa los datos del objeto.', 'error');
             }
 
-            const result = sellSystem.createManualItem(payload, getItemsById());
+            const existingMatches = itemEngine.findByName(store.getState().market.items, payload.existingQuery);
+            const sourceItem = payload.itemMode === 'existing' ? existingMatches[0] : null;
+            const derivedName = sourceItem?.name ?? payload.name;
+            const derivedDescription = sourceItem?.description ?? payload.description;
+            const derivedType = sourceItem?.type ?? payload.type;
+            const derivedRarity = sourceItem?.rarity ?? payload.rarity;
+            const derivedPrice = sourceItem
+                ? itemEngine.computePriceFromRarity(sourceItem.rarity, payload.priceModifierPercent)
+                : itemEngine.computePriceFromRarity(derivedRarity, payload.priceModifierPercent);
+
+            if (!derivedName || !derivedDescription) {
+                return showMessage('Debes definir nombre y descripción para el ítem.', 'error');
+            }
+
+            const result = sellSystem.createManualItem({
+                ...payload,
+                name: derivedName,
+                description: derivedDescription,
+                type: derivedType,
+                rarity: derivedRarity,
+                basePrice: payload.basePrice > 0 ? payload.basePrice : derivedPrice,
+            }, getItemsById());
             if (!result.ok) return showMessage(result.reason, 'error');
 
             closeModal();
@@ -739,6 +709,37 @@ function bindEvents() {
 
     store.subscribe(() => queueBackendSync('store:subscribe'));
     bus.on('inventory:changed', () => renderMoney());
+}
+
+function runMarketCycle() {
+    const before = store.getState();
+    const nextTick = (before.market.currentTick ?? 0) + 1;
+
+    store.update((draft) => {
+        draft.market.currentTick = nextTick;
+        draft.market.items = draft.market.items.map((rawItem) => {
+            const item = marketEngine.ensureItemState(rawItem);
+            const nextStock = marketEngine.simulateExternalDemand(item);
+            const nextItem = { ...item, stock: nextStock };
+            const nextPrice = marketEngine.recalculateDynamicPrice(nextItem, economySystem);
+            nextItem.basePrice = nextPrice;
+            nextItem.marketBasePrice = nextPrice;
+            return nextItem;
+        });
+        return draft;
+    });
+
+    const resolved = sellSystem.settleListings(nextTick);
+    resolved.forEach((entry) => {
+        if (entry.status === 'sold') {
+            const total = Math.round(entry.unitPriceBaseUnits * entry.quantity);
+            showMessage(`Venta completada (${entry.itemId}) por ${formatCurrency(total, { systemId: store.getState().ui.currencySystemId })}.`, 'success');
+        } else {
+            showMessage(`Publicación sin venta (${entry.itemId}). El ítem regresó a tu inventario.`, 'warning');
+        }
+    });
+
+    renderApp();
 }
 
 
@@ -756,9 +757,12 @@ bindTradeToggle();
 bindCurrencyControls();
 bindEvents();
 
+setInterval(runMarketCycle, marketEngine.tickIntervalMs);
+
 window.mercadoDebug = {
     supabaseEnabled: gameApi.isEnabled(),
     reloadFromBackend: () => hydrateFromBackend(),
+    runMarketCycle,
 };
 
 renderApp();

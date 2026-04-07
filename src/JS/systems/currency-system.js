@@ -12,13 +12,12 @@ const CURRENCY_SYSTEMS = {
         id: 'dnd',
         label: 'D&D',
         icon: '🪙',
-        baseCurrency: 'cp',
+        baseCurrency: 'pc',
         currencies: [
-            { code: 'cp', label: 'Cobre', short: 'cp', ratioToBase: 1 },
-            { code: 'sp', label: 'Plata', short: 'sp', ratioToBase: 10 },
-            { code: 'ep', label: 'Electro', short: 'ep', ratioToBase: 50 },
-            { code: 'gp', label: 'Oro', short: 'gp', ratioToBase: 100 },
-            { code: 'pp', label: 'Platino', short: 'pp', ratioToBase: 1000 },
+            { code: 'pc', label: 'Cobre', short: 'pc', ratioToBase: 1 },
+            { code: 'pp', label: 'Plata', short: 'pp', ratioToBase: 10 },
+            { code: 'po', label: 'Oro', short: 'po', ratioToBase: 100 },
+            { code: 'ppt', label: 'Platino', short: 'ppt', ratioToBase: 1000 },
         ],
     },
     worldElemental: {

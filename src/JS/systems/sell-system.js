@@ -10,12 +10,13 @@
 import { asPositiveNumber } from '../utils/validators.js';
 
 export class SellSystem {
-    constructor(store, bus, inventorySystem, economySystem, currencySystem) {
+    constructor(store, bus, inventorySystem, economySystem, currencySystem, tradeEngine) {
         this.store = store;
         this.bus = bus;
         this.inventorySystem = inventorySystem;
         this.economySystem = economySystem;
         this.currencySystem = currencySystem;
+        this.tradeEngine = tradeEngine;
     }
 
     estimateValue(item) {
@@ -24,7 +25,7 @@ export class SellSystem {
         return sellPrice;
     }
 
-    sellItem(itemId, quantity, customPriceBaseUnits) {
+    publishListing(itemId, quantity, customPriceBaseUnits) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         const hasInventory = (state.player.inventory[itemId]?.quantity ?? 0) >= quantity;
@@ -37,8 +38,7 @@ export class SellSystem {
 
         const requestedBaseUnits = asPositiveNumber(customPriceBaseUnits, fairPriceBaseUnits);
         const clampedBaseUnits = this.economySystem.clampPrice(item, requestedBaseUnits, { log: true, reason: 'venta manual fuera de rango' });
-        const unitPriceBaseUnits = Math.min(fairPriceBaseUnits, clampedBaseUnits);
-        const totalIncomeBaseUnits = Math.round(unitPriceBaseUnits * quantity);
+        const unitPriceBaseUnits = Math.max(1, clampedBaseUnits);
 
         console.log('[CURRENCY] sellItem conversion', {
             itemId,
@@ -49,27 +49,65 @@ export class SellSystem {
             clampedBaseUnits,
             unitPriceBaseUnits,
             unitPriceFormatted: this.currencySystem.formatCurrency(unitPriceBaseUnits, { systemId: state.ui.currencySystemId }),
-            totalIncomeBaseUnits,
-            totalIncomeFormatted: this.currencySystem.formatCurrency(totalIncomeBaseUnits, { systemId: state.ui.currencySystemId }),
+            totalAtListBaseUnits: Math.round(unitPriceBaseUnits * quantity),
+            totalAtListFormatted: this.currencySystem.formatCurrency(Math.round(unitPriceBaseUnits * quantity), { systemId: state.ui.currencySystemId }),
         });
 
         const removed = this.inventorySystem.removeItem(itemId, quantity, new Map(state.market.items.map((entry) => [entry.id, entry])));
-        if (!removed) return { ok: false, reason: 'No se pudo vender el ítem.' };
+        if (!removed) return { ok: false, reason: 'No se pudo publicar el ítem.' };
+
+        const listing = this.tradeEngine.createListing({
+            itemId,
+            quantity,
+            unitPriceBaseUnits,
+            marketPriceBaseUnits: fairPriceBaseUnits,
+            rarity: item.rarity,
+            currentTick: state.market.currentTick ?? 0,
+        });
 
         this.store.update((draft) => {
-            const draftItem = draft.market.items.find((entry) => entry.id === itemId);
-            draft.player.wallet.baseUnits += totalIncomeBaseUnits;
-            draft.player.wallet = this.currencySystem.serializeWallet(draft.player.wallet);
-            draft.player.money = draft.player.wallet.legacyGold;
-            if (draftItem) {
-                draftItem.stock = (draftItem.stock ?? 0) + quantity;
-                draftItem.economy = this.economySystem.applyTransaction(draftItem, 'sell', quantity);
-            }
+            draft.market.listings = draft.market.listings ?? [];
+            draft.market.listings.push(listing);
             return draft;
         });
 
-        this.bus.emit('market:sold', { itemId, quantity, totalIncomeBaseUnits, unitPriceBaseUnits });
-        return { ok: true, totalIncomeBaseUnits, unitPriceBaseUnits };
+        this.bus.emit('market:listing:published', { itemId, quantity, unitPriceBaseUnits, listingId: listing.id });
+        return { ok: true, listing, unitPriceBaseUnits };
+    }
+
+    settleListings(currentTick) {
+        const state = this.store.getState();
+        const listings = state.market.listings ?? [];
+        const { nextListings, resolved } = this.tradeEngine.evaluateListings(listings, currentTick);
+        if (!resolved.length) return [];
+        const itemsById = new Map(state.market.items.map((entry) => [entry.id, entry]));
+
+        resolved.forEach((entry) => {
+            if (entry.status === 'returned') {
+                this.inventorySystem.addItem(entry.itemId, entry.quantity, itemsById);
+            }
+        });
+
+        this.store.update((draft) => {
+            draft.market.listings = nextListings;
+            resolved.forEach((entry) => {
+                const marketItem = draft.market.items.find((item) => item.id === entry.itemId);
+                if (!marketItem) return;
+                if (entry.status === 'sold') {
+                    const totalIncomeBaseUnits = Math.round(entry.unitPriceBaseUnits * entry.quantity);
+                    draft.player.wallet.baseUnits += totalIncomeBaseUnits;
+                    draft.player.wallet = this.currencySystem.serializeWallet(draft.player.wallet);
+                    draft.player.money = draft.player.wallet.legacyGold;
+                    marketItem.economy = this.economySystem.applyTransaction(marketItem, 'sell', entry.quantity);
+                }
+            });
+            return draft;
+        });
+
+        resolved.forEach((entry) => {
+            this.bus.emit('market:listing:resolved', entry);
+        });
+        return resolved;
     }
 
     createManualItem(payload, itemsById) {
@@ -90,6 +128,7 @@ export class SellSystem {
             stackable: payload.stackable,
             slotSize: payload.slotSize,
             stock: 0,
+            maxStock: Math.max(10, payload.quantity * 4),
             entityKind: payload.entityKind ?? 'item',
             isCustom: true,
             economy: {

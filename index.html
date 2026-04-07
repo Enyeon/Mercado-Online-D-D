@@ -75,6 +75,19 @@
 
                 <form class="modal-form">
                     <label class="form-group">
+                        <span class="form-label">Modo de creación</span>
+                        <select id="modal-item-mode" class="form-select" name="itemMode" required>
+                            <option value="existing">Ítem existente</option>
+                            <option value="new">Ítem nuevo</option>
+                        </select>
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Buscar ítem existente</span>
+                        <input class="form-input" name="existingQuery" placeholder="Ej: Daga, Elixir..." />
+                    </label>
+
+                    <label class="form-group">
                         <span class="form-label">Nombre</span>
                         <input class="form-input name-objet" name="name-objet" required />
                     </label>
@@ -102,6 +115,11 @@
                     <label class="form-group">
                         <span class="form-label">Valor estimado</span>
                         <input class="form-input" name="basePrice" type="number" min="1" value="20" required />
+                    </label>
+
+                    <label class="form-group">
+                        <span class="form-label">Modificador de precio (%)</span>
+                        <input class="form-input" name="priceModifierPercent" type="number" min="-80" max="400" value="0" />
                     </label>
 
                     <label class="toggle-line">
