@@ -149,7 +149,7 @@ function clampPriceState(state, nextModifier, currencySystem) {
     });
     return {
         prices,
-        currentPriceBaseUnits: currencySystem.getItemPriceInBaseUnits(prices.buyPrice),
+        currentPriceBaseUnits: prices.buyPrice,
         modifier: Math.min(0.15, Math.max(-0.15, nextModifier)),
     };
 }
@@ -157,7 +157,7 @@ function clampPriceState(state, nextModifier, currencySystem) {
 export function createNegotiationState({ item, vendorType, reputation = 0, performPurchase, currencySystem, systemId }) {
     const vendor = VENDORS[vendorType] ?? VENDORS.smuggler;
     const { buyPrice } = calculateItemPrices(item, vendorType, reputation, { stock: item.stock });
-    const buyPriceBaseUnits = currencySystem.getItemPriceInBaseUnits(buyPrice);
+    const buyPriceBaseUnits = buyPrice;
     return {
         item,
         vendorType,
@@ -170,7 +170,6 @@ export function createNegotiationState({ item, vendorType, reputation = 0, perfo
         stress: vendor.stress,
         mood: getMood(vendor.stress),
         reputation,
-        currentPriceLegacyGold: buyPrice,
         currentPriceBaseUnits: buyPriceBaseUnits,
         negotiationModifier: 0,
         performPurchase,
@@ -208,11 +207,10 @@ export function handlePlayerAction(action, state, { currencySystem, systemId }) 
 
     const pricing = clampPriceState(next, next.negotiationModifier + modifierDelta, currencySystem);
     next.negotiationModifier = pricing.modifier;
-    next.currentPriceLegacyGold = pricing.prices.buyPrice;
     next.currentPriceBaseUnits = pricing.currentPriceBaseUnits;
 
     if (action === 'buy') {
-        const result = next.performPurchase?.(next.currentPriceLegacyGold);
+        const result = next.performPurchase?.(next.currentPriceBaseUnits);
         if (result?.ok) {
             next.messages.push({
                 speaker: 'vendor',

@@ -217,7 +217,7 @@ async function hydrateFromBackend() {
         console.log('[bootstrap] hydrated from Supabase', persistedState);
 
         store.update((draft) => {
-            const wallet = currencySystem.ensurePlayerWallet({ money: persistedState.gold, wallet: persistedState.wallet }, draft.ui.currencySystemId);
+            const wallet = currencySystem.ensurePlayerWallet({ legacyGold: persistedState.gold, wallet: persistedState.wallet }, draft.ui.currencySystemId);
             draft.player.wallet = wallet;
             draft.player.money = wallet.legacyGold;
             draft.player.inventory = persistedState.inventory;
@@ -276,7 +276,7 @@ function openNegotiation(item) {
         item,
         vendorType,
         reputation: 0,
-        performPurchase: (unitPriceLegacyGold) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPriceLegacyGold),
+        performPurchase: (unitPriceBaseUnits) => marketSystem.buyItem(item.id, 1, getItemsById(), unitPriceBaseUnits),
         currencySystem,
         systemId: store.getState().ui.currencySystemId,
     });
@@ -353,7 +353,7 @@ function handleBuyDetail(item) {
     renderBuyDetail({
         container: els.detailPanel,
         item,
-        estimatedPrice: currencySystem.getItemPriceInBaseUnits(economySystem.estimateMarketValue(item)),
+        estimatedPrice: economySystem.estimateMarketValue(item),
         systemId: store.getState().ui.currencySystemId,
         onBuy: async (quantityRaw) => {
             const quantity = asPositiveInt(quantityRaw, 1);
@@ -428,7 +428,7 @@ function renderCurrentDetail() {
                 <li class="detail-line">
                     <span class="label">Valor de mercado</span>
                     <span class="value">
-                        ${formatCurrency(currencySystem.getItemPriceInBaseUnits(economySystem.estimateMarketValue(selectedItem)), { systemId: state.ui.currencySystemId })}
+                        ${formatCurrency(economySystem.estimateMarketValue(selectedItem), { systemId: state.ui.currencySystemId })}
                     </span>
                 </li>
                 <li class="detail-line">

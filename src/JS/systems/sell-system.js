@@ -21,7 +21,7 @@ export class SellSystem {
     estimateValue(item) {
         const vendorType = this.economySystem.resolveVendorType(item);
         const { sellPrice } = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
-        return this.currencySystem.getItemPriceInBaseUnits(sellPrice);
+        return sellPrice;
     }
 
     sellItem(itemId, quantity, customPriceBaseUnits) {
@@ -33,24 +33,24 @@ export class SellSystem {
 
         const vendorType = this.economySystem.resolveVendorType(item);
         const fairPrices = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
-        const fairPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(fairPrices.sellPrice);
-        const fairPriceLegacyGold = fairPrices.sellPrice;
+        const fairPriceBaseUnits = fairPrices.sellPrice;
 
         const requestedBaseUnits = asPositiveNumber(customPriceBaseUnits, fairPriceBaseUnits);
-        const requestedLegacyGold = this.currencySystem.toLegacyGold(requestedBaseUnits);
-        const clampedLegacyGold = this.economySystem.clampPrice(item, requestedLegacyGold, { log: true, reason: 'venta manual fuera de rango' });
-        const unitPriceLegacyGold = Math.min(fairPriceLegacyGold, clampedLegacyGold);
-        const unitPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(unitPriceLegacyGold);
+        const clampedBaseUnits = this.economySystem.clampPrice(item, requestedBaseUnits, { log: true, reason: 'venta manual fuera de rango' });
+        const unitPriceBaseUnits = Math.min(fairPriceBaseUnits, clampedBaseUnits);
         const totalIncomeBaseUnits = Math.round(unitPriceBaseUnits * quantity);
 
         console.log('[CURRENCY] sellItem conversion', {
             itemId,
             quantity,
-            fairPriceLegacyGold,
+            fairPriceBaseUnits,
+            fairPriceFormatted: this.currencySystem.formatCurrency(fairPriceBaseUnits, { systemId: state.ui.currencySystemId }),
             requestedBaseUnits,
-            requestedLegacyGold,
+            clampedBaseUnits,
             unitPriceBaseUnits,
+            unitPriceFormatted: this.currencySystem.formatCurrency(unitPriceBaseUnits, { systemId: state.ui.currencySystemId }),
             totalIncomeBaseUnits,
+            totalIncomeFormatted: this.currencySystem.formatCurrency(totalIncomeBaseUnits, { systemId: state.ui.currencySystemId }),
         });
 
         const removed = this.inventorySystem.removeItem(itemId, quantity, new Map(state.market.items.map((entry) => [entry.id, entry])));
@@ -74,9 +74,10 @@ export class SellSystem {
 
     createManualItem(payload, itemsById) {
         const nextId = `custom-${crypto.randomUUID().slice(0, 8)}`;
+        const normalizedBasePrice = this.currencySystem.getItemPriceInBaseUnits(payload.basePrice);
         const basePrice = this.economySystem.clampPrice(
-            { marketBasePrice: payload.basePrice, basePrice: payload.basePrice, rarity: payload.rarity },
-            payload.basePrice,
+            { marketBasePrice: normalizedBasePrice, basePrice: normalizedBasePrice, rarity: payload.rarity },
+            normalizedBasePrice,
         );
         const newItem = {
             id: nextId,

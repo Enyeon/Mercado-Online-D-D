@@ -7,26 +7,100 @@
 
 
 
+export const COMIDA_ITEMS = [
+    /* =============    COMUNES    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'common',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+
+
+
+    /* =============    POCO COMUNES    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'uncommon',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+
+
+
+    /* =============    RARO    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'rare',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+
+
+
+    /* =============    MUY RARO    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'veryRare',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+
+
+
+    /* =============    ÉPICOS    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'epic',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+
+
+
+    /* =============    LEGENDARIAS    ============= */
+    { name: '',
+        id: '',
+        description: '',
+        rarity: 'legendary',
+        type: 'comida',
+        marketBasePrice: 1,
+        stock: 20,
+        stackable: true,
+    },
+];
+
+
 export const BASE_ITEMS = [
     /* =============    COMUNES    ============= */
+    // Consumibles
     { name: 'Poción de Curación',
         id: 'potion-healer',
         description: 'Restaura salud en combate.',
         rarity: 'common',
         type: 'consumibles',
-        marketBasePrice: 1,
+        marketBasePrice: 5,
         stock: 20,
         stackable: true,
     },
-    { name: 'Piel de Lobo',
-        id: 'wolf-pelt',
-        description: 'Material curtido para fabricar equipo ligero.',
-        rarity: 'common',
-        type: 'materiales',
-        marketBasePrice: 15,
-        stock: 50,
-        stackable: true,
-    },
+
+
+    // Armas
     { name: 'Daga',
         id: 'dagger',
         description: 'Hoja forjada con metal liviano.',
@@ -36,42 +110,215 @@ export const BASE_ITEMS = [
         stock: 10,
         stackable: false,
     },
+    { name: 'Espada',
+        id: 'sword',
+        description: 'Hoja forjada con metal liviano.',
+        rarity: 'common',
+        type: 'armas',
+        marketBasePrice: 10,
+        stock: 10,
+        stackable: false,
+    },
+
+
+    // Materiales
+    { name: 'Piel de Lobo',
+        id: 'wolf-pelt',
+        description: 'Material curtido para fabricar equipo ligero.',
+        rarity: 'common',
+        type: 'materiales',
+        marketBasePrice: 15,
+        stock: 50,
+        stackable: true,
+    },
+
+
+    // Armaduras / Ligeras
+    { name: 'Armadura de Alcolchada [Ligero]',
+        id: 'armor-padded-light',
+        description: 'Armadura ligera con un alcolchado perfectamente equipado. [11 + DES]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 500,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Cuero [Ligero]',
+        id: 'armor-leather-light',
+        description: 'Armadura ligera hecha de cuero endurecido. [11 + DES]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 1000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Cuero tachonado [Ligero]',
+        id: 'armor-studded-leather-light',
+        description: 'Armadura ligera hecha de cuero endurecido, resistente y reforzado con remaches. [12 + DES]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 4500,
+        stock: 10,
+        stackable: false,
+    },
+
+    // Armaduras / Promedio
+    { name: 'Armadura de Pieles [Promedio]',
+        id: 'armor-pelt-average',
+        description: 'Armadura hecha de Pieles. [12 + DES (máx. 2)]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 1000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Camisote de mallas [Promedio]',
+        id: 'armor-mesh-camisole-average',
+        description: 'Armadura hecha de una malla metálica. [13 + DES (máx. 2)]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 5000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Cota de escamas [Promedio]',
+        id: 'armor-scale-mail-average',
+        description: 'Armadura hecha de pequeñas escamas perfectamente anidadas. [14 + DES (máx. 2)]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 5000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Coraza [Promedio]',
+        id: 'armor-breastplate-average',
+        description: 'Armadura forjada con corazas. [14 + DES (máx. 2)]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 40000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Semiplacas [Promedio]',
+        id: 'armor-half-plates-average',
+        description: 'Armadura hecha con semiplacas. [15 + DES (máx. 2)]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 75000,
+        stock: 10,
+        stackable: false,
+    },
+
+    // Armaduras / Pesadas
+    { name: 'Armadura de Cota de anillas [Pesado]',
+        id: 'armor-ring-mail-heavy',
+        description: 'Armadura hecha con anillas metálicas perfectamente anidadas. [14]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 3000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Cota de mallas [Pesado]',
+        id: 'armor-chain-mail-heavy',
+        description: 'Armadura hecha con mallas metálicas pesadas. [16] [FUE 13]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 7500,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Bandas [Pesado]',
+        id: 'armor-banded-heavy',
+        description: 'Armadura hecha con remache de bandas metálicas, remachadas verticalmente en una tela endurecida. [17] [FUE 15]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 20000,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Armadura de Placas [Pesado]',
+        id: 'armor-plates-heavy',
+        description: 'Armadura hecha por placas reforzadas en una base de cuero endurecido. [18] [FUE 15]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 150000,
+        stock: 3,
+        stackable: false,
+    },
+
+
+    // Escudos
+    { name: 'Escudo de Madera [Ligero]',
+        id: 'shield-wooden-light',
+        description: 'Escudo de madera, pco duradero, pero resistente. [+1]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 500,
+        stock: 10,
+        stackable: false,
+    },
+    { name: 'Escudo de Hierro [Promedio]',
+        id: 'shield-iron-average',
+        description: 'Escudo hecho de hierro forjado. [+2]',
+        rarity: 'common',
+        type: 'armadura',
+        marketBasePrice: 1000,
+        stock: 5,
+        stackable: false,
+    },
+    { name: 'Escudo de Placas [Pesado]',
+        id: 'shield-plates-heavy',
+        description: 'Escudo hecho de placas pesadas pero reforzadas. [+3] [FUE 15]',
+        rarity: 'common',
+        type: 'escudo',
+        marketBasePrice: 15000,
+        stock: 2,
+        stackable: false,
+    },
+
 
 
     /* =============    POCO COMUNES    ============= */
+    // Consumibles
     { name: 'Elixir de Maná',
         id: 'mana-elixir',
         description: 'Recupera energía arcana en combate.',
         rarity: 'uncommon',
         type: 'consumibles',
-        marketBasePrice: 38,
+        marketBasePrice: 380,
         stock: 25,
         stackable: true,
     },
 
 
+
     /* =============    RARO    ============= */
+    // Armas
     { name: 'Espada Colmillo',
         id: 'fang-sword',
         description: 'Hoja forjada con colmillos de depredador alfa.',
         rarity: 'rare',
         type: 'armas',
-        marketBasePrice: 120,
-        stock: 8,
+        marketBasePrice: 12000,
+        stock: 3,
         stackable: false,
     },
 
 
+
     /* =============    MUY RARO    ============= */
+    // Armaduras
     { name: 'Coraza del Guardián',
         id: 'warden-plate',
-        description: 'Armadura pesada con runas de protección.',
+        description: 'Armadura pesada hecha con la coraza de un Guardián con runas de protección. [18]',
         rarity: 'veryRare',
         type: 'armaduras',
-        marketBasePrice: 250,
-        stock: 5,
-        stackable: true,
+        marketBasePrice: 200000,
+        stock: 2,
+        stackable: false,
     },
+
 
 
     /* =============    ÉPICOS    ============= */
@@ -80,7 +327,7 @@ export const BASE_ITEMS = [
         description: 'Reliquia mítica nacida de dos dragones primordiales.',
         rarity: 'epic',
         type: 'artefactos',
-        marketBasePrice: 1200,
+        marketBasePrice: 120000,
         stock: 1,
         stackable: false,
     },
@@ -89,7 +336,7 @@ export const BASE_ITEMS = [
         description: 'Objeto único vinculado a una entidad, también usado en bodas.',
         rarity: 'epic',
         type: 'artefactos',
-        marketBasePrice: 2500,
+        marketBasePrice: 250000,
         stock: 1,
         stackable: false,
     },
@@ -98,10 +345,11 @@ export const BASE_ITEMS = [
         description: 'Objeto único vinculado a un único portador, también usado en bodas.',
         rarity: 'epic',
         type: 'artefactos',
-        marketBasePrice: 2500,
+        marketBasePrice: 250000,
         stock: 1,
         stackable: false,
     },
+
 
 
     /* =============    LEGENDARIAS    ============= */
@@ -110,7 +358,7 @@ export const BASE_ITEMS = [
         description: 'Artefacto que almacena fragmentos de memoria ancestral.',
         rarity: 'legendary',
         type: 'artefactos',
-        marketBasePrice: 640,
+        marketBasePrice: 640000,
         stock: 1,
         stackable: false,
     },
@@ -170,6 +418,7 @@ export const BACKPACKS = [
     },
 
 
+
     /* =============    POCO COMUNES    ============= */
     { name: 'Zurrón de Herborista',
         id: 'storage-herbal-satchel',
@@ -191,6 +440,7 @@ export const BACKPACKS = [
         stock: 2,
         stackable: false,
     },
+
 
 
     /* =============    RAROS    ============= */
@@ -226,6 +476,7 @@ export const BACKPACKS = [
     },
 
 
+
     /* =============    MUY RAROS    ============= */
     { name: 'Contenedor del Vacío',
         id: 'storage-void-container',
@@ -239,6 +490,7 @@ export const BACKPACKS = [
     },
 
 
+
     /* =============    MUY RAROS    ============= */
     { name: 'Bolsa Dimensional Mayor',
         id: 'storage-dimensional-bag-major',
@@ -250,6 +502,7 @@ export const BACKPACKS = [
         stock: 1,
         stackable: false,
     },
+
 
 
     /* =============    ÉPICO    ============= */
@@ -283,6 +536,7 @@ export const BACKPACKS = [
         stock: 100,
         stackable: true,
     },
+
 
 
     /* =============    LEGENDARIOS    ============= */
@@ -370,6 +624,7 @@ export const MOUNTS = [
     },
 
 
+
     /* =============    POCO COMUNES    ============= */
     { name: 'Caballo de Guerra',
         id: 'mount-war-horse',
@@ -413,6 +668,7 @@ export const MOUNTS = [
     },
 
 
+
     /* =============    RAROS    ============= */
     { name: 'Alce Rúnico',
         id: 'mount-elk',
@@ -446,6 +702,7 @@ export const MOUNTS = [
     },
 
 
+
     /* =============    MUY RAROS    ============= */
     { name: 'Escorpión Colosal',
         id: 'mount-giant-scorpion',
@@ -469,6 +726,7 @@ export const MOUNTS = [
     },
 
 
+
     /* =============    ÉPICO    ============= */
     { name: 'Pantera Sombría',
         id: 'mount-shadow-panther',
@@ -490,6 +748,7 @@ export const MOUNTS = [
         stock: "∞",
         stackable: false,
     },
+
 
 
     /* =============    LEGENDARIOS    ============= */
@@ -523,6 +782,7 @@ export const MOUNTS = [
         stock: "∞",
         stackable: false,
     },
+
 
 
     /* =============    ÚNICO    ============= */
@@ -607,6 +867,7 @@ export const PETS = [
     },
 
 
+
     /* =============    POCO COMUNES    ============= */
     { name: 'Cachorro de Lobo Negro',
         id: 'pet-black-wolf-cub',
@@ -658,6 +919,7 @@ export const PETS = [
     },
 
 
+
     /* =============    RAROS    ============= */
     { name: 'Cachorro de Lobo Invernal [Coordenadas]',
         id: 'pet-winter-wolf-pup',
@@ -701,6 +963,7 @@ export const PETS = [
     },
 
 
+
     /* =============    MUY RAROS    ============= */
     { name: 'Cachorro de Worg [Pista]',
         id: 'pet-worg-puppy',
@@ -736,6 +999,7 @@ export const PETS = [
     },
 
 
+
     /* =============    ÉPICOS    ============= */
     { name: 'Cría de Bestia Desplazadora',
         id: 'pet-displacer-beast-offspring',
@@ -761,6 +1025,7 @@ export const PETS = [
         marketBasePrice: 800,
         stock: "4",
     },
+
 
 
     /* =============    LEGENDARIOS    ============= */
@@ -820,18 +1085,6 @@ export const VEHICLES = [
         stock: "∞",
         stackable: false,
     },
-
-
-    /* =============    POCO COMUNES    ============= */
-    { name: 'Carreta Reforzada',
-        id: 'vehicle-cart-reinforced',
-        rarity: 'uncommon',
-        type: 'vehiculo',
-        marketBasePrice: 2600,
-        storage: { objectSlots: 220, weaponSlots: 35 },
-        stock: "∞",
-        stackable: false,
-    },
     { name: 'Carro de Mercader',
         id: 'vehicle-merchant-wagon',
         rarity: 'uncommon',
@@ -841,15 +1094,29 @@ export const VEHICLES = [
         stock: "∞",
         stackable: false,
     },
+
+
+
+    /* =============    POCO COMUNES    ============= */
+    { name: 'Carreta Reforzada',
+        id: 'vehicle-cart-reinforced',
+        rarity: 'uncommon',
+        type: 'vehiculo',
+        marketBasePrice: 26000,
+        storage: { objectSlots: 220, weaponSlots: 35 },
+        stock: "∞",
+        stackable: false,
+    },
     { name: 'Carro de Caza',
         id: 'vehicle-hunting-wagon',
         rarity: 'uncommon',
         type: 'vehiculo',
-        marketBasePrice: 2800,
+        marketBasePrice: 28000,
         storage: { objectSlots: 180, weaponSlots: 45 },
         stock: "∞",
         stackable: false,
     },
+
 
 
     /* =============    RAROS    ============= */
@@ -857,7 +1124,7 @@ export const VEHICLES = [
         id: 'vehicle-carriage-noble',
         rarity: 'rare',
         type: 'vehiculo',
-        marketBasePrice: 4200,
+        marketBasePrice: 42000,
         storage: { objectSlots: 150, weaponSlots: 20 },
         stock: "∞",
         stackable: false,
@@ -866,7 +1133,7 @@ export const VEHICLES = [
         id: 'vehicle-armored-wagon',
         rarity: 'rare',
         type: 'vehiculo',
-        marketBasePrice: 5200,
+        marketBasePrice: 52000,
         storage: { objectSlots: 240, weaponSlots: 60 },
         stock: "∞",
         stackable: false,
@@ -875,7 +1142,7 @@ export const VEHICLES = [
         id: 'vehicle-alchemy-wagon',
         rarity: 'rare',
         type: 'vehiculo',
-        marketBasePrice: 4800,
+        marketBasePrice: 48000,
         storage: { objectSlots: 300, weaponSlots: 10 },
         stock: "∞",
         stackable: false,
@@ -884,11 +1151,12 @@ export const VEHICLES = [
         id: 'vehicle-prison-wagon',
         rarity: 'rare',
         type: 'vehiculo',
-        marketBasePrice: 4500,
+        marketBasePrice: 45000,
         storage: { objectSlots: 200, weaponSlots: 30 },
         stock: "∞",
         stackable: false,
     },
+
 
 
     /* =============    MUY RAROS    ============= */
@@ -896,7 +1164,7 @@ export const VEHICLES = [
         id: 'vehicle-steam-wagon',
         rarity: 'veryRare',
         type: 'vehiculo',
-        marketBasePrice: 7500,
+        marketBasePrice: 75000,
         storage: { objectSlots: 320, weaponSlots: 50 },
         stock: "∞",
         stackable: false,
@@ -905,11 +1173,12 @@ export const VEHICLES = [
         id: 'vehicle-runic-caravan',
         rarity: 'veryRare',
         type: 'vehiculo',
-        marketBasePrice: 8200,
+        marketBasePrice: 82000,
         storage: { objectSlots: 400, weaponSlots: 40 },
         stock: "∞",
         stackable: false,
     },
+
 
 
     /* =============    ÉPICO    ============= */
@@ -917,7 +1186,7 @@ export const VEHICLES = [
         id: 'vehicle-shadow-carriage',
         rarity: 'epic',
         type: 'vehiculo',
-        marketBasePrice: 7800,
+        marketBasePrice: 78000,
         storage: { objectSlots: 180, weaponSlots: 25 },
         stock: "∞",
         stackable: false,

@@ -58,6 +58,11 @@ function asInteger(value, fallback = 0) {
     return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
 }
 
+function readOptionalInteger(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+}
+
 export class CurrencySystem {
     constructor({ defaultSystemId = 'dnd' } = {}) {
         this.defaultSystemId = defaultSystemId;
@@ -98,7 +103,9 @@ export class CurrencySystem {
 
         if (system.id === 'usd') {
             const usd = this.convertFromBaseUnits(amount, { systemId: 'usd', currencyCode: 'usd' });
-            return `$${usd.toLocaleString('en-US')}`;
+            const formatted = `$${usd.toLocaleString('en-US')}`;
+            console.debug('[CURRENCY] formatCurrency', { systemId: system.id, inputBaseUnits: amount, formatted });
+            return formatted;
         }
 
         const normalized = this.normalizeBalances(amount, system.id);
@@ -109,7 +116,14 @@ export class CurrencySystem {
             .filter((entry) => entry.amount > 0)
             .map((entry) => `${entry.amount.toLocaleString('es-ES')} ${entry.currency.short}`);
 
-        return parts.length ? parts.join(', ') : `0 ${system.currencies[0].short}`;
+        const formatted = parts.length ? parts.join(', ') : `0 ${system.currencies[0].short}`;
+        console.debug('[CURRENCY] formatCurrency', {
+            systemId: system.id,
+            inputBaseUnits: amount,
+            normalized,
+            formatted,
+        });
+        return formatted;
     }
 
     convertToBaseUnits(amount, { systemId = this.defaultSystemId, currencyCode } = {}) {
@@ -154,10 +168,13 @@ export class CurrencySystem {
     }
 
     parseWallet(playerState, activeSystemId = this.defaultSystemId) {
-        const legacyMoney = asInteger(playerState?.money, 0);
         const wallet = playerState?.wallet;
 
         if (wallet?.version === 1 && Number.isFinite(wallet.baseUnits)) {
+            console.debug('[CURRENCY] parseWallet usa wallet serializada', {
+                activeSystemId: wallet.activeSystemId ?? activeSystemId,
+                baseUnits: wallet.baseUnits,
+            });
             return {
                 version: 1,
                 activeSystemId: wallet.activeSystemId ?? activeSystemId,
@@ -166,8 +183,31 @@ export class CurrencySystem {
             };
         }
 
-        const migratedBase = this.convertToBaseUnits(legacyMoney, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
-        console.info('[CURRENCY] Migración automática desde legacy gold -> wallet', { legacyMoney, migratedBase });
+        const explicitBaseUnits = readOptionalInteger(playerState?.baseUnits ?? playerState?.money);
+        const explicitLegacyGold = readOptionalInteger(playerState?.legacyGold ?? playerState?.gold);
+
+        if (explicitBaseUnits !== null) {
+            const normalizedBase = Math.max(0, explicitBaseUnits);
+            console.info('[CURRENCY] parseWallet usa valor base explícito', {
+                input: explicitBaseUnits,
+                normalizedBase,
+                activeSystemId,
+            });
+            return {
+                version: 1,
+                activeSystemId,
+                baseUnits: normalizedBase,
+                balancesBySystem: {},
+            };
+        }
+
+        const legacyGold = Math.max(0, explicitLegacyGold ?? 0);
+        const migratedBase = this.convertToBaseUnits(legacyGold, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
+        console.info('[CURRENCY] Migración automática legacyGold -> baseUnits', {
+            legacyGold,
+            migratedBase,
+            activeSystemId,
+        });
 
         return {
             version: 1,
@@ -202,8 +242,13 @@ export class CurrencySystem {
         return this.formatCurrency(wallet.baseUnits, { systemId: systemId ?? wallet.activeSystemId });
     }
 
-    getItemPriceInBaseUnits(legacyPriceInGold) {
-        return this.convertToBaseUnits(legacyPriceInGold, { systemId: 'dnd', currencyCode: LEGACY_GOLD_CODE });
+    getItemPriceInBaseUnits(marketBasePrice) {
+        const normalizedBaseUnits = Math.max(0, asInteger(marketBasePrice, 0));
+        console.debug('[CURRENCY] getItemPriceInBaseUnits', {
+            input: marketBasePrice,
+            normalizedBaseUnits,
+        });
+        return normalizedBaseUnits;
     }
 
     toLegacyGold(baseUnits) {

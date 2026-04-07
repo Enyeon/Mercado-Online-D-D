@@ -15,17 +15,19 @@ import {
     BASE_ITEMS,
     PETS,
 } from './storage-options.js';
+import { currencySystem } from '../systems/currency-system.js';
 
 export const ITEM_TYPES = [
-    'material',
     'arma',
     'armadura',
-    'consumible',
     'artefacto',
+    'consumible',
     'equipaje-montura',
+    'escudo',
+    'material',
+    'mascota',
     'mochila',
     'montura',
-    'mascota',
     'vehiculo',
     'otros',
 ];
@@ -33,9 +35,11 @@ export const ITEM_TYPES = [
 
 
 function withEconomy(entry) {
+    const marketBasePrice = currencySystem.getItemPriceInBaseUnits(entry.basePrice ?? entry.marketBasePrice ?? 0);
     return {
         ...entry,
-        basePrice: entry.basePrice ?? entry.marketBasePrice,
+        basePrice: marketBasePrice,
+        marketBasePrice,
         economy: {
             demand: entry.economy?.demand ?? 0,
             supply: entry.economy?.supply ?? 0,

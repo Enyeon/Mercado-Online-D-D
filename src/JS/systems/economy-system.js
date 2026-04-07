@@ -8,6 +8,7 @@
 
 
 import { ITEM_RARITIES } from '../data/item-rarities.js';
+import { currencySystem } from './currency-system.js';
 
 const MIN_PRICE_FACTOR = 0.5;
 const MAX_PRICE_FACTOR = 3;
@@ -62,7 +63,7 @@ export class EconomySystem {
     }
 
     getBasePrice(item) {
-        return Number(item.marketBasePrice ?? item.basePrice ?? 0);
+        return currencySystem.getItemPriceInBaseUnits(item.marketBasePrice ?? item.basePrice ?? 0);
     }
 
     getRarityConfig(item) {

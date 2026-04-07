@@ -42,7 +42,7 @@ export class MarketSystem {
         return null;
     }
 
-    buyItem(itemId, quantity, itemsById, forcedUnitPriceLegacyGold = null) {
+    buyItem(itemId, quantity, itemsById, forcedUnitPriceBaseUnits = null) {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         if (!item) return { ok: false, reason: 'Entrada no encontrada.' };
@@ -50,21 +50,21 @@ export class MarketSystem {
 
         const vendorType = this.economySystem.resolveVendorType(item);
         const { buyPrice } = this.economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
-        const unitPriceLegacyGold = Number.isFinite(forcedUnitPriceLegacyGold)
-            ? Math.max(1, Math.round(forcedUnitPriceLegacyGold))
+        const unitPriceBaseUnits = Number.isFinite(forcedUnitPriceBaseUnits)
+            ? this.currencySystem.getItemPriceInBaseUnits(forcedUnitPriceBaseUnits)
             : buyPrice;
-
-        const unitPriceBaseUnits = this.currencySystem.getItemPriceInBaseUnits(unitPriceLegacyGold);
         const totalCostBaseUnits = quantity * unitPriceBaseUnits;
         const wallet = this.currencySystem.parseWallet(state.player, state.ui.currencySystemId);
 
         console.log('[CURRENCY] buyItem conversion', {
             itemId,
             quantity,
-            unitPriceLegacyGold,
             unitPriceBaseUnits,
+            unitPriceFormatted: this.currencySystem.formatCurrency(unitPriceBaseUnits, { systemId: state.ui.currencySystemId }),
             totalCostBaseUnits,
+            totalCostFormatted: this.currencySystem.formatCurrency(totalCostBaseUnits, { systemId: state.ui.currencySystemId }),
             playerBaseUnits: wallet.baseUnits,
+            playerFormatted: this.currencySystem.formatCurrency(wallet.baseUnits, { systemId: state.ui.currencySystemId }),
         });
 
         if (!this.economySystem.canAfford(wallet.baseUnits, totalCostBaseUnits)) return { ok: false, reason: 'No tienes suficiente dinero.' };
