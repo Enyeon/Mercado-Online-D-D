@@ -34,6 +34,7 @@ const RARITY_PRICE_SCALING = {
 
 function normalizeStockValue(rawStock) {
     if (rawStock === '∞') return Number.POSITIVE_INFINITY;
+    if (rawStock === Infinity) return Number.POSITIVE_INFINITY;
     const numericStock = Number(rawStock);
     return Number.isFinite(numericStock) ? Math.max(0, numericStock) : Number.POSITIVE_INFINITY;
 }

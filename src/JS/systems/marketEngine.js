@@ -22,19 +22,32 @@ function randomBetween(min, max) {
     return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
+function normalizeStock(item) {
+    if (item.stock === Infinity || item.isInfiniteStock) return Infinity;
+    if (item.stock === '∞') return Infinity;
+    const numericStock = Number(item.stock ?? 0);
+    return Number.isFinite(numericStock) ? numericStock : 0;
+}
+
 export class MarketEngine {
     constructor({ tickIntervalMs = DEFAULT_TICK_INTERVAL_MS } = {}) {
         this.tickIntervalMs = tickIntervalMs;
     }
 
     ensureItemState(item) {
-        const maxStock = Number.isFinite(item.maxStock) ? item.maxStock : Math.max(1, Number(item.stock ?? 1));
-        const stock = clamp(Number(item.stock ?? 0), 0, maxStock);
+        const hasInfiniteStock = item.isInfiniteStock || item.stock === Infinity || item.stock === '∞';
+        const normalizedStock = normalizeStock(item);
+        const fallbackStock = hasInfiniteStock ? Infinity : normalizedStock;
+        const maxStock = hasInfiniteStock
+            ? Infinity
+            : (Number.isFinite(item.maxStock) ? item.maxStock : Math.max(1, Number(fallbackStock || 1)));
+        const stock = hasInfiniteStock ? Infinity : clamp(fallbackStock, 0, maxStock);
         const marketBasePrice = Math.max(1, Number(item.marketBasePrice ?? item.basePrice ?? 1));
         return {
             ...item,
             stock,
             maxStock,
+            isInfiniteStock: hasInfiniteStock || item.isInfiniteStock === true,
             marketBasePrice,
             basePrice: Math.max(1, Number(item.basePrice ?? marketBasePrice)),
         };
@@ -74,27 +87,25 @@ export class MarketEngine {
     }
 
     simulateExternalDemand(item) {
+        if (item.isInfiniteStock || item.stock === Infinity) return item.stock;
+
         const rarityWeight = {
-            common: 1.15,
-            uncommon: 1,
-            rare: 0.9,
-            veryRare: 0.75,
-            epic: 0.65,
-            legendary: 0.55,
-            unique: 0.5,
+            common: { min: -5, max: 5, chance: 1 },
+            uncommon: { min: -3, max: 3, chance: 0.85 },
+            rare: { min: -2, max: 2, chance: 0.7 },
+            veryRare: { min: -1, max: 1, chance: 0.45 },
+            epic: { min: -1, max: 1, chance: 0.3 },
+            legendary: { min: -1, max: 1, chance: 0.2 },
+            unique: { min: -1, max: 1, chance: 0.15 },
         };
-        const amplitude = rarityWeight[item.rarity] ?? 1;
+        const rarityRule = rarityWeight[item.rarity] ?? { min: -2, max: 2, chance: 0.6 };
         const stockRatio = item.maxStock > 0 ? clamp(item.stock / item.maxStock, 0, 1) : 0;
-        const demandSwing = Math.max(1, Math.round(item.maxStock * 0.12 * amplitude));
-        const supplySwing = Math.max(1, Math.round(item.maxStock * 0.15 * amplitude));
 
         let change = 0;
-        if (stockRatio < 0.3) {
-            change = randomBetween(0, supplySwing);
-        } else if (stockRatio > 0.7) {
-            change = randomBetween(-demandSwing, 0);
-        } else {
-            change = randomBetween(-demandSwing, supplySwing);
+        if (Math.random() < rarityRule.chance) {
+            change = randomBetween(rarityRule.min, rarityRule.max);
+            if (stockRatio < 0.2) change = Math.max(change, 0);
+            if (stockRatio > 0.85) change = Math.min(change, 0);
         }
 
         const nextStock = clamp(item.stock + change, 0, item.maxStock);

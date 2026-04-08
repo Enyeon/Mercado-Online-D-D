@@ -9,6 +9,7 @@
 
 import {
     formatCurrency,
+    formatStock,
     getRarityLabel,
 } from '../../utils/formatters.js';
 import { createRarityDots } from './rarity-dots.js';
@@ -93,7 +94,16 @@ function renderExtraSection(item) {
     }
 }
 
-export function renderBuyDetail({ container, item, estimatedPrice, onBuy, systemId }) {
+export function renderBuyDetail({
+    container,
+    item,
+    estimatedPrice,
+    onBuy,
+    systemId,
+    canAffordQuantity,
+    maxAffordableQuantity,
+    onCannotAfford
+}) {
     const maxStock = Number.isFinite(item.stock) ? item.stock : null;
     container.innerHTML = `
         <header class="mite-header rarity-${item.rarity}">
@@ -116,7 +126,7 @@ export function renderBuyDetail({ container, item, estimatedPrice, onBuy, system
 
             <li class="detail-line">
                 <span class="label">Stock</span>
-                <strong class="value">${item.stock ?? '∞'}</strong>
+                <strong class="value">${formatStock(item.stock ?? Infinity)}</strong>
             </li>
         </ul>
 
@@ -138,10 +148,45 @@ export function renderBuyDetail({ container, item, estimatedPrice, onBuy, system
     `;
 
     container.querySelector('.detail-rarity').appendChild(createRarityDots(item.rarity));
-    container.querySelector('#buy-confirm').addEventListener('click', () => {
-        const quantity = Number.parseInt(container.querySelector('#buy-quantity').value, 10) || 1;
+    const quantityInput = container.querySelector('#buy-quantity');
+    const confirmButton = container.querySelector('#buy-confirm');
+
+    const syncAffordability = () => {
+        if (typeof canAffordQuantity !== 'function') return true;
+        const quantity = Number.parseInt(quantityInput.value, 10) || 1;
+        const canAfford = canAffordQuantity(quantity);
+        confirmButton.disabled = !canAfford;
+        confirmButton.classList.toggle('is-disabled', !canAfford);
+        quantityInput.classList.toggle('is-invalid', !canAfford);
+        return canAfford;
+    };
+
+    quantityInput.addEventListener('input', () => {
+        if (typeof maxAffordableQuantity === 'function') {
+            const maxAffordable = Math.max(0, maxAffordableQuantity());
+            if (maxAffordable <= 0) {
+                quantityInput.value = '1';
+                quantityInput.disabled = true;
+                syncAffordability();
+                return;
+            }
+            quantityInput.disabled = false;
+            const quantity = Number.parseInt(quantityInput.value, 10) || 1;
+            if (quantity > maxAffordable) quantityInput.value = String(maxAffordable);
+        }
+        syncAffordability();
+    });
+
+    confirmButton.addEventListener('click', () => {
+        const quantity = Number.parseInt(quantityInput.value, 10) || 1;
+        if (!syncAffordability()) {
+            if (typeof onCannotAfford === 'function') onCannotAfford(confirmButton);
+            return;
+        }
         onBuy(quantity);
     });
+
+    quantityInput.dispatchEvent(new Event('input'));
 }
 
 export function renderSellDetail({ container, item, inventoryQty, estimatedPrice, onSell, systemId, unitInputValue, unitInputLabel }) {

@@ -21,3 +21,7 @@ export function convertCurrency(value, from, to, systemId) {
 export function getRarityLabel(rarityId) {
     return ITEM_RARITIES[rarityId]?.label ?? rarityId;
 }
+
+export function formatStock(stock) {
+    return stock === Infinity ? '∞' : stock;
+}

@@ -46,6 +46,7 @@ export class MarketSystem {
         const state = this.store.getState();
         const item = state.market.items.find((entry) => entry.id === itemId);
         if (!item) return { ok: false, reason: 'Entrada no encontrada.' };
+        if (!Number.isInteger(quantity) || quantity <= 0) return { ok: false, reason: 'Cantidad inválida.' };
         if (Number.isFinite(item.stock) && item.stock < quantity) return { ok: false, reason: 'No hay stock suficiente.' };
 
         const vendorType = this.economySystem.resolveVendorType(item);
@@ -76,7 +77,9 @@ export class MarketSystem {
 
         this.store.update((draft) => {
             const draftItem = draft.market.items.find((entry) => entry.id === itemId);
-            if (draftItem && typeof draftItem.stock === 'number') draftItem.stock -= quantity;
+            if (draftItem && typeof draftItem.stock === 'number' && !draftItem.isInfiniteStock && draftItem.stock !== Infinity) {
+                draftItem.stock -= quantity;
+            }
             if (draftItem) draftItem.economy = this.economySystem.applyTransaction(draftItem, 'buy', quantity);
             draft.player.wallet.baseUnits = Math.max(0, draft.player.wallet.baseUnits - totalCostBaseUnits);
             draft.player.wallet = this.currencySystem.serializeWallet(draft.player.wallet);

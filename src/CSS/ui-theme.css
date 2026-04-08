@@ -976,6 +976,34 @@ body {
         0 0 22px #c8a96a42;
 }
 
+.btn-terciary.is-disabled,
+.btn-terciary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
+}
+
+.form-input.is-invalid {
+    border-color: #dc6a6af2;
+    box-shadow: 0 0 0 1px #dc6a6a4a;
+}
+
+.error-red {
+    border-color: #dc6a6af2 !important;
+    color: #ffd6d6 !important;
+}
+
+.error-shake {
+    animation: error-shake .35s ease-in-out;
+}
+
+@keyframes error-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-3px); }
+}
+
 .btn-danger {
     border-color: #9a3a3ad9;
     background:

@@ -159,6 +159,13 @@ function showMessage(text, kind = 'info') {
     console.log(`%c[MARKET] ${text}`, styles[kind] || styles.info);
 }
 
+function normalizeMarketStockValue(stock) {
+    if (stock === Infinity || stock === '∞') return Infinity;
+    const numericStock = Number(stock);
+    if (Number.isNaN(numericStock)) return 0;
+    return numericStock;
+}
+
 function isValidRewardCandidate(item, sourceItemId) {
     if (!item || typeof item.id !== 'string') return false;
     if (item.id === sourceItemId) return false;
@@ -244,7 +251,7 @@ async function hydrateFromBackend() {
                     return {
                         ...item,
                         basePrice: Number(remote.price ?? item.basePrice),
-                        stock: Number(remote.stock ?? item.stock),
+                        stock: normalizeMarketStockValue(remote.stock ?? item.stock),
                     };
                 });
             }
@@ -349,11 +356,39 @@ function executeBuy(item, quantity) {
 }
 
 function handleBuyDetail(item) {
+    const resolveUnitPrice = () => {
+        const vendorType = economySystem.resolveVendorType(item);
+        const { buyPrice } = economySystem.calculateItemPrices(item, vendorType, 0, { stock: item.stock });
+        return buyPrice;
+    };
+
+    const getCanAffordQuantity = (quantityRaw) => {
+        const state = store.getState();
+        const quantity = asPositiveInt(quantityRaw, 1);
+        const totalCost = quantity * resolveUnitPrice();
+        return economySystem.canAfford(state.player.wallet.baseUnits, totalCost);
+    };
+
+    const getMaxAffordableQuantity = () => {
+        const state = store.getState();
+        const unitPrice = Math.max(1, resolveUnitPrice());
+        const walletQty = Math.floor(state.player.wallet.baseUnits / unitPrice);
+        const stockLimit = Number.isFinite(item.stock) ? item.stock : Number.POSITIVE_INFINITY;
+        return Math.max(0, Math.min(walletQty, stockLimit));
+    };
+
     renderBuyDetail({
         container: els.detailPanel,
         item,
         estimatedPrice: economySystem.estimateMarketValue(item),
         systemId: store.getState().ui.currencySystemId,
+        canAffordQuantity: getCanAffordQuantity,
+        maxAffordableQuantity: getMaxAffordableQuantity,
+        onCannotAfford: (button) => {
+            button.classList.add('error-shake', 'error-red');
+            setTimeout(() => button.classList.remove('error-shake', 'error-red'), 500);
+            showMessage('No tienes suficiente dinero para esa cantidad.', 'error');
+        },
         onBuy: async (quantityRaw) => {
             const quantity = asPositiveInt(quantityRaw, 1);
             const warning = marketSystem.getPurchaseWarning(item.id, getItemsById());
@@ -774,6 +809,9 @@ function runMarketCycle() {
     store.update((draft) => {
         draft.market.currentTick = nextTick;
         draft.market.items = draft.market.items.map((rawItem) => {
+            if (Number.isNaN(rawItem.stock)) {
+                console.warn('Stock inválido detectado', rawItem);
+            }
             if (rawItem.isPriceStatic) {
                 return {
                     ...rawItem,

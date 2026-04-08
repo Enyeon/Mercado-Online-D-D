@@ -8,6 +8,7 @@
 
 
 import { createRarityDots } from './rarity-dots.js';
+import { formatStock } from '../../utils/formatters.js';
 
 export function createItemCard({ item, quantity, mode, onSelect, inactive = false, badge = '' }) {
     const card = document.createElement('article');
@@ -21,7 +22,7 @@ export function createItemCard({ item, quantity, mode, onSelect, inactive = fals
         <div class="item-footer">
             ${
                 mode === 'buy'
-                ? `<p class="item-stock">Stock: <strong>${item.stock}</strong></p>`
+                ? `<p class="item-stock">Stock: <strong>${formatStock(item.stock)}</strong></p>`
                 : `<p class="item-quantity">Cantidad: <strong>${quantity ?? 0}</strong></p>`
             }
             ${badge ? `<p class="item-state">${badge}</p>` : ''}
