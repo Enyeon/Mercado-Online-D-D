@@ -47,7 +47,7 @@ const initialInventorySeed = {
 
 const initialState = {
     player: {
-        money: 10,
+        money: 10000,
         inventory: initialInventorySeed,
         inventoryOrder: ['potion-healer', 'dagger'],
         overflowItemIds: [],
@@ -157,6 +157,23 @@ function showMessage(text, kind = 'info') {
     };
 
     console.log(`%c[MARKET] ${text}`, styles[kind] || styles.info);
+}
+
+function isValidRewardCandidate(item, sourceItemId) {
+    if (!item || typeof item.id !== 'string') return false;
+    if (item.id === sourceItemId) return false;
+    if (item.canAppearInRewardPool === false) return false;
+    if (item.isDebug === true || item.debugOnly === true) return false;
+    if (!['item', 'mountPack', 'pet'].includes(item.entityKind)) return false;
+    return true;
+}
+
+function getRandomRewardFromPool(sourceItem) {
+    const allItems = store.getState().market.items;
+    const rewardPool = allItems.filter((candidate) => isValidRewardCandidate(candidate, sourceItem.id));
+    if (!rewardPool.length) return null;
+    const randomIndex = Math.floor(Math.random() * rewardPool.length);
+    return rewardPool[randomIndex];
 }
 
 let persistQueued = false;
@@ -380,6 +397,43 @@ function handleSellDetail(item) {
     renderTransportAndCapacity();
 }
 
+function tryExecuteInventoryItemAction(selectedItem) {
+    if (selectedItem.inventoryAction !== 'open-random-item') return false;
+
+    const actionHtml = `
+        <div class="detail-actions">
+            <button id="open-special-item" class="btn btn-terciary top-btn">Abrir</button>
+        </div>
+    `;
+    els.detailPanel.insertAdjacentHTML('beforeend', actionHtml);
+
+    els.detailPanel.querySelector('#open-special-item')?.addEventListener('click', () => {
+        const itemsById = getItemsById();
+        const playerQty = store.getState().player.inventory[selectedItem.id]?.quantity ?? 0;
+        if (playerQty <= 0) return showMessage('No tienes unidades disponibles para abrir.', 'error');
+
+        const rewardItem = getRandomRewardFromPool(selectedItem);
+        if (!rewardItem) return showMessage('No hay recompensas válidas disponibles en este momento.', 'error');
+
+        const capacityCheck = slotsSystem.canStore(rewardItem, 1, itemsById);
+        if (!capacityCheck.ok) return showMessage(`No puedes abrir esta caja: ${capacityCheck.reason}.`, 'error');
+
+        const consumed = inventorySystem.removeItem(selectedItem.id, 1, itemsById);
+        if (!consumed) return showMessage('No se pudo consumir la caja sorpresa.', 'error');
+
+        const addResult = inventorySystem.addItem(rewardItem.id, 1, itemsById);
+        if (!addResult.ok) {
+            inventorySystem.addItem(selectedItem.id, 1, itemsById);
+            return showMessage(`No se pudo otorgar la recompensa: ${addResult.reason}`, 'error');
+        }
+
+        showMessage(`✨ ¡Abriste la caja y recibiste: ${rewardItem.name}!`, 'success');
+        renderApp();
+    });
+
+    return true;
+}
+
 function renderCurrentDetail() {
     const state = store.getState();
     const selectedItem = getSelectedItem();
@@ -455,6 +509,8 @@ function renderCurrentDetail() {
             renderApp();
         });
     }
+
+    tryExecuteInventoryItemAction(selectedItem);
 
     renderTransportAndCapacity();
 }
@@ -718,12 +774,22 @@ function runMarketCycle() {
     store.update((draft) => {
         draft.market.currentTick = nextTick;
         draft.market.items = draft.market.items.map((rawItem) => {
+            if (rawItem.isPriceStatic) {
+                return {
+                    ...rawItem,
+                    basePrice: economySystem.getBasePrice(rawItem),
+                    marketBasePrice: economySystem.getBasePrice(rawItem),
+                    economy: {
+                        ...(rawItem.economy ?? {}),
+                        inflationFactor: 1,
+                    },
+                };
+            }
             const item = marketEngine.ensureItemState(rawItem);
             const nextStock = marketEngine.simulateExternalDemand(item);
             const nextItem = { ...item, stock: nextStock };
             const nextPrice = marketEngine.recalculateDynamicPrice(nextItem, economySystem);
             nextItem.basePrice = nextPrice;
-            nextItem.marketBasePrice = nextPrice;
             return nextItem;
         });
         return draft;

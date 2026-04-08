@@ -72,6 +72,12 @@ export class EconomySystem {
 
     calculateItemPrices(item, vendorType = 'smuggler', reputation = 0, marketState = {}) {
         const basePrice = this.getBasePrice(item);
+        if (item.isPriceStatic) {
+            return {
+                buyPrice: Math.max(1, Math.round(basePrice)),
+                sellPrice: Math.max(1, Math.floor(basePrice * 0.8)),
+            };
+        }
         const rarityFactor = RARITY_PRICE_SCALING[item.rarity] ?? 1;
         const economy = this.ensureEconomyState(item);
         const demandPressure = Number(marketState.demand ?? economy.demand ?? 0);
@@ -118,12 +124,14 @@ export class EconomySystem {
     }
 
     getInflationFactor(item) {
+        if (item.isPriceStatic) return 1;
         const economy = this.ensureEconomyState(item);
         const rawFactor = 1 + (economy.demand - economy.supply) * INFLATION_STEP;
         return Number(Math.min(Math.max(rawFactor, MIN_INFLATION_FACTOR), MAX_INFLATION_FACTOR).toFixed(2));
     }
 
     getDynamicPrice(item, { log = false } = {}) {
+        if (item.isPriceStatic) return this.getBasePrice(item);
         const basePrice = this.getBasePrice(item);
         const rarityMultiplier = this.getRarityConfig(item).multiplier;
         const inflationFactor = this.getInflationFactor(item);
@@ -151,6 +159,7 @@ export class EconomySystem {
 
     applyTransaction(item, transactionType, quantity = 1) {
         const economy = this.ensureEconomyState(item);
+        if (item.isPriceStatic) return { ...economy, inflationFactor: 1 };
         if (transactionType === 'buy') economy.demand += quantity;
         if (transactionType === 'sell') economy.supply += quantity;
         economy.inflationFactor = this.getInflationFactor({ ...item, economy });

@@ -88,6 +88,20 @@ export const COMIDA_ITEMS = [
 
 export const BASE_ITEMS = [
     /* =============    COMUNES    ============= */
+    { name: 'Lucky Box',
+        id: 'lucky-box',
+        description: 'Caja sorpresa: ábrela en inventario para recibir un ítem aleatorio.',
+        rarity: 'rare',
+        type: 'consumibles',
+        marketBasePrice: 3500,
+        stock: "∞",
+        stackable: true,
+        isPriceStatic: true,
+        inventoryAction: 'open-random-item',
+        rewardPool: 'market-items',
+        canAppearInRewardPool: false,
+    },
+
     // Consumibles
     { name: 'Poción de Curación',
         id: 'potion-healer',
