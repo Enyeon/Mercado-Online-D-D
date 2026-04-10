@@ -33,6 +33,7 @@ import { renderInventoryView } from './ui/views/inventory-view.js';
 import { renderMarketView } from './ui/views/market-view.js';
 import { renderSellView } from './ui/views/sell-view.js';
 import { DEFAULT_MARKET_FILTERS, getMarketFilterOptions } from './utils/market-filters.js';
+import { calculateUsedSlots } from './inventory.js';
 
 const gameApi = new SupabaseGameAPI();
 
@@ -166,21 +167,194 @@ function normalizeMarketStockValue(stock) {
     return numericStock;
 }
 
+const ITEM_TYPE_EMOJIS = {
+    arma: '⚔️',
+    armas: '⚔️',
+    armadura: '🛡️',
+    armaduras: '🛡️',
+    artefacto: '🔮',
+    artefactos: '🔮',
+    consumible: '🧪',
+    consumibles: '🧪',
+    'equipaje-montura': '🎒',
+    escudo: '🛡️',
+    escudos: '🛡️',
+    material: '🧱',
+    materiales: '🧱',
+    mascota: '🐾',
+    mascotas: '🐾',
+    mochila: '🎒',
+    mochilas: '🎒',
+    montura: '🐎',
+    monturas: '🐎',
+    vehiculo: '🚗',
+    vehículos: '🚗',
+    vehiculos: '🚗',
+};
+
+const LUCKY_BOX_BASE_CHANCES = {
+    common: 56,
+    uncommon: 24,
+    rare: 12,
+    veryRare: 5,
+    epic: 2.7,
+    legendary: 0.29,
+    unique: 0.01,
+};
+
+const LUCKY_BOX_BUFFED_CHANCES = {
+    common: 40,
+    uncommon: 24,
+    rare: 16,
+    veryRare: 10,
+    epic: 6,
+    legendary: 3.6,
+    unique: 0.4,
+};
+
+let luckyBoxBuffCharges = 0;
+
+function normalizeType(value) {
+    return String(value ?? '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+}
+
+function isConsumable(item) {
+    const normalizedType = normalizeType(item?.type);
+    return normalizedType === 'consumible' || normalizedType === 'consumibles';
+}
+
+function getItemTypeEmoji(item) {
+    return ITEM_TYPE_EMOJIS[normalizeType(item?.type)] ?? '🎁';
+}
+
+function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getRandomRarity(rarityChances) {
+    const roll = Math.random() * 100;
+    let accumulated = 0;
+    for (const [rarity, chance] of Object.entries(rarityChances)) {
+        accumulated += Number(chance) || 0;
+        if (roll <= accumulated) return rarity;
+    }
+    return Object.keys(rarityChances).at(-1) ?? 'common';
+}
+
+function getLuckyBoxRarityChances() {
+    return luckyBoxBuffCharges > 0 ? LUCKY_BOX_BUFFED_CHANCES : LUCKY_BOX_BASE_CHANCES;
+}
+
+function validateRarityChances(rarityChances) {
+    const total = Object.values(rarityChances).reduce((sum, chance) => sum + (Number(chance) || 0), 0);
+    if (Math.abs(total - 100) > 0.001) {
+        console.warn('[LUCKY_BOX] La distribución de rarezas no suma 100%.', { rarityChances, total });
+    }
+}
+
 function isValidRewardCandidate(item, sourceItemId) {
     if (!item || typeof item.id !== 'string') return false;
     if (item.id === sourceItemId) return false;
     if (item.canAppearInRewardPool === false) return false;
     if (item.isDebug === true || item.debugOnly === true) return false;
+    if (item.disabled === true || item.enabled === false) return false;
     if (!['item', 'mountPack', 'pet'].includes(item.entityKind)) return false;
     return true;
 }
 
-function getRandomRewardFromPool(sourceItem) {
+function getRewardPoolByRarity(sourceItem) {
     const allItems = store.getState().market.items;
     const rewardPool = allItems.filter((candidate) => isValidRewardCandidate(candidate, sourceItem.id));
-    if (!rewardPool.length) return null;
-    const randomIndex = Math.floor(Math.random() * rewardPool.length);
-    return rewardPool[randomIndex];
+    const grouped = rewardPool.reduce((acc, item) => {
+        const rarity = item.rarity ?? 'common';
+        if (!acc[rarity]) acc[rarity] = [];
+        acc[rarity].push(item);
+        return acc;
+    }, {});
+
+    if (grouped.unique?.length > 1) grouped.unique = [grouped.unique[0]];
+    return grouped;
+}
+
+function getRandomLuckyBoxReward(sourceItem) {
+    const groupedByRarity = getRewardPoolByRarity(sourceItem);
+    const availableRarities = Object.entries(groupedByRarity)
+        .filter(([, entries]) => entries.length > 0)
+        .map(([rarity]) => rarity);
+
+    if (!availableRarities.length) return null;
+
+    const configuredChances = getLuckyBoxRarityChances();
+    validateRarityChances(configuredChances);
+    const filteredChanceEntries = Object.entries(configuredChances).filter(([rarity]) => availableRarities.includes(rarity));
+    const totalAvailableChance = filteredChanceEntries.reduce((sum, [, chance]) => sum + chance, 0);
+    if (totalAvailableChance <= 0) return null;
+    const normalizedChanceMap = Object.fromEntries(filteredChanceEntries.map(([rarity, chance]) => [rarity, (chance / totalAvailableChance) * 100]));
+
+    const selectedRarity = getRandomRarity(normalizedChanceMap);
+    const itemsOfRarity = groupedByRarity[selectedRarity] ?? [];
+    if (!itemsOfRarity.length) return null;
+    const reward = itemsOfRarity[Math.floor(Math.random() * itemsOfRarity.length)];
+    return { reward, selectedRarity };
+}
+
+async function playDiceRollAnimation(button) {
+    const panel = els.detailPanel;
+    let animationNode = panel.querySelector('.dice-roll-animation');
+    if (!animationNode) {
+        animationNode = document.createElement('div');
+        animationNode.className = 'dice-roll-animation';
+        panel.appendChild(animationNode);
+    }
+    const label = animationNode.querySelector('.dice-roll-label') ?? Object.assign(document.createElement('div'), { className: 'dice-roll-label' });
+    const value = animationNode.querySelector('.dice-roll-value') ?? Object.assign(document.createElement('div'), { className: 'dice-roll-value' });
+    label.textContent = 'Dado del Destino';
+    animationNode.append(label, value);
+    button?.classList.add('is-disabled');
+    if (button) button.disabled = true;
+    animationNode.classList.add('is-visible');
+
+    let finalValue = 1;
+    for (let i = 0; i < 18; i += 1) {
+        finalValue = Math.floor(Math.random() * 20) + 1;
+        value.textContent = String(finalValue);
+        await wait(35 + i * 8);
+    }
+
+    await wait(230);
+    animationNode.classList.remove('is-visible');
+    if (button) button.disabled = false;
+    button?.classList.remove('is-disabled');
+    return finalValue;
+}
+
+async function playLuckyBoxAnimation(chances) {
+    const panel = els.detailPanel;
+    let animationNode = panel.querySelector('.lucky-box-animation');
+    if (!animationNode) {
+        animationNode = document.createElement('div');
+        animationNode.className = 'lucky-box-animation';
+        panel.appendChild(animationNode);
+    }
+    animationNode.innerHTML = '';
+    const strip = document.createElement('div');
+    strip.className = 'lucky-box-strip';
+    const sequence = Object.keys(chances);
+    for (let i = 0; i < 24; i += 1) {
+        const rarity = sequence[Math.floor(Math.random() * sequence.length)];
+        const tile = document.createElement('div');
+        tile.className = `lucky-box-tile rarity-${rarity}`;
+        tile.textContent = rarity;
+        strip.appendChild(tile);
+    }
+    animationNode.appendChild(strip);
+    animationNode.classList.add('is-visible');
+    strip.style.setProperty('--shift', '-72%');
+    strip.classList.add('is-spinning');
+    await wait(1100);
+    strip.classList.remove('is-spinning');
+    await wait(280);
+    animationNode.classList.remove('is-visible');
 }
 
 let persistQueued = false;
@@ -433,36 +607,90 @@ function handleSellDetail(item) {
 }
 
 function tryExecuteInventoryItemAction(selectedItem) {
-    if (selectedItem.inventoryAction !== 'open-random-item') return false;
+    const state = store.getState();
+    const selectedQty = state.player.inventory[selectedItem.id]?.quantity ?? 0;
+    if (selectedQty <= 0) return false;
+
+    const canUseInMarket = selectedItem.id === 'destiny-dice'
+        && ((state.player.inventory['lucky-box']?.quantity ?? 0) > 0);
+    const isUniqueDice = selectedItem.id === 'destiny-dice';
+    const isLuckyBox = selectedItem.inventoryAction === 'open-random-item';
+    const shouldRenderRolAction = isConsumable(selectedItem);
+
+    if (!isLuckyBox && !shouldRenderRolAction && !isUniqueDice) return false;
 
     const actionHtml = `
-        <div class="detail-actions">
-            <button id="open-special-item" class="btn btn-terciary top-btn">Abrir</button>
+        <div class="detail-actions detail-actions--inventory">
+            ${isLuckyBox ? '<button id="open-special-item" class="btn btn-terciary top-btn">Abrir Lucky Box</button>' : ''}
+            ${shouldRenderRolAction ? '<button id="use-item-role" class="btn btn-secondary top-btn">Usado en Rol</button>' : ''}
+            ${canUseInMarket ? '<button id="use-destiny-market" class="btn btn-terciary top-btn">Usar en Mercado</button>' : ''}
         </div>
     `;
     els.detailPanel.insertAdjacentHTML('beforeend', actionHtml);
 
-    els.detailPanel.querySelector('#open-special-item')?.addEventListener('click', () => {
+    els.detailPanel.querySelector('#use-item-role')?.addEventListener('click', async (event) => {
+        const itemsById = getItemsById();
+        const playerQty = store.getState().player.inventory[selectedItem.id]?.quantity ?? 0;
+        if (playerQty <= 0) return showMessage('No tienes unidades disponibles para usar.', 'error');
+
+        if (selectedItem.id === 'destiny-dice') {
+            const roll = await playDiceRollAnimation(event.currentTarget);
+            const consumedDice = inventorySystem.removeItem(selectedItem.id, 1, itemsById);
+            if (!consumedDice) return showMessage('No se pudo consumir el Dado del Destino.', 'error');
+            showMessage(`🎲 El Dado del Destino marcó ${roll}.`, 'success');
+            renderApp();
+            return;
+        }
+
+        const consumed = inventorySystem.removeItem(selectedItem.id, 1, itemsById);
+        if (!consumed) return showMessage('No se pudo consumir el ítem.', 'error');
+        showMessage(`🧪 ${selectedItem.name} fue consumido en rol.`, 'success');
+        renderApp();
+    });
+
+    els.detailPanel.querySelector('#use-destiny-market')?.addEventListener('click', (event) => {
+        const itemsById = getItemsById();
+        const availableBoxes = store.getState().player.inventory['lucky-box']?.quantity ?? 0;
+        const availableDice = store.getState().player.inventory[selectedItem.id]?.quantity ?? 0;
+        if (availableDice <= 0) return showMessage('No tienes Dado del Destino disponible.', 'error');
+        if (availableBoxes <= 0) return;
+
+        const consumedDice = inventorySystem.removeItem(selectedItem.id, 1, itemsById);
+        if (!consumedDice) return showMessage('No se pudo consumir el Dado del Destino.', 'error');
+        luckyBoxBuffCharges += 1;
+        event.currentTarget.classList.add('is-disabled');
+        showMessage('💰 El mercado fue bendecido: la próxima Lucky Box tendrá mejor rareza.', 'success');
+        renderApp();
+    });
+
+    els.detailPanel.querySelector('#open-special-item')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
         const itemsById = getItemsById();
         const playerQty = store.getState().player.inventory[selectedItem.id]?.quantity ?? 0;
         if (playerQty <= 0) return showMessage('No tienes unidades disponibles para abrir.', 'error');
 
-        const rewardItem = getRandomRewardFromPool(selectedItem);
-        if (!rewardItem) return showMessage('No hay recompensas válidas disponibles en este momento.', 'error');
+        const chances = getLuckyBoxRarityChances();
+        const rewardRoll = getRandomLuckyBoxReward(selectedItem);
+        if (!rewardRoll?.reward) return showMessage('No hay recompensas válidas disponibles en este momento.', 'error');
 
-        const capacityCheck = slotsSystem.canStore(rewardItem, 1, itemsById);
+        const capacityCheck = slotsSystem.canStore(rewardRoll.reward, 1, itemsById);
         if (!capacityCheck.ok) return showMessage(`No puedes abrir esta caja: ${capacityCheck.reason}.`, 'error');
+
+        button.disabled = true;
+        await playLuckyBoxAnimation(chances);
 
         const consumed = inventorySystem.removeItem(selectedItem.id, 1, itemsById);
         if (!consumed) return showMessage('No se pudo consumir la caja sorpresa.', 'error');
 
-        const addResult = inventorySystem.addItem(rewardItem.id, 1, itemsById);
+        const addResult = inventorySystem.addItem(rewardRoll.reward.id, 1, itemsById);
         if (!addResult.ok) {
             inventorySystem.addItem(selectedItem.id, 1, itemsById);
             return showMessage(`No se pudo otorgar la recompensa: ${addResult.reason}`, 'error');
         }
 
-        showMessage(`✨ ¡Abriste la caja y recibiste: ${rewardItem.name}!`, 'success');
+        if (luckyBoxBuffCharges > 0) luckyBoxBuffCharges -= 1;
+        const emoji = getItemTypeEmoji(rewardRoll.reward);
+        showMessage(`✨ ${emoji} ¡Abriste la caja y recibiste ${rewardRoll.reward.name} (${rewardRoll.selectedRarity})!`, 'success');
         renderApp();
     });
 
@@ -488,7 +716,7 @@ function renderCurrentDetail() {
     els.detailPanel.innerHTML = `
         <hr class="detail-divider">
 
-        <div class="detail-section detail-inventory">
+        <div class="detail-section detail-inventory rarity-${selectedItem.rarity}${selectedItem.id === 'destiny-dice' ? ' detail-unique-item' : ''}">
             <header class="item-detail__header">
                 <h2 class="item-detail__title">${selectedItem.name}</h2>
             </header>

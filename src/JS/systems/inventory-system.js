@@ -35,6 +35,7 @@ export class InventorySystem {
         const beforeRefresh = this.store.getState().player.inventory;
         console.log('[inventory] emitInventoryChanged: before refreshOverflow', beforeRefresh);
         if (itemsById) this.slotsSystem.refreshOverflow(itemsById);
+        if (itemsById) console.log('[inventory] capacity after mutation', this.slotsSystem.recalculateCapacity(itemsById));
         console.log('[inventory] emitInventoryChanged: after refreshOverflow', this.store.getState().player.inventory);
         this.bus.emit('inventory:changed', this.store.getState().player.inventory);
     }

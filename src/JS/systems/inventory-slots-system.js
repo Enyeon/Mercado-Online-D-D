@@ -9,6 +9,7 @@
 
 import {
     BASE_OBJECT_CAPACITY,
+    calculateUsedSlots,
     countUsageByType,
     getInventoryDebugSummary,
     partitionInventory
@@ -40,9 +41,8 @@ export class InventorySlotsSystem {
     }
 
     static calculateItemUsage(item, quantity) {
-        const size = item.slotSize ?? 1;
-        if (item.stackable) return quantity > 0 ? size : 0;
-        return quantity * size;
+        if (quantity <= 0) return 0;
+        return item.stackable ? 1 : quantity;
     }
 
     getUsage(itemsById) {
@@ -70,7 +70,17 @@ export class InventorySlotsSystem {
 
         return {
             uniqueItemTypes,
-            occupiedSlots: usage.objectUsage,
+            occupiedSlots: calculateUsedSlots(state.player.inventory, itemsById, { excludedIds }),
+            usage,
+        };
+    }
+
+    recalculateCapacity(itemsById) {
+        const capacity = this.getCapacity();
+        const usage = this.getUsage(itemsById);
+        return {
+            usedSlots: usage.objectUsage,
+            totalSlots: capacity.objectCapacity,
         };
     }
 

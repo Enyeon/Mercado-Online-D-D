@@ -140,6 +140,19 @@ export function getInventoryDebugSummary(inventory = {}, itemsById, options = {}
     });
 }
 
+export function calculateUsedSlots(inventory, itemsById, options = {}) {
+    const excludedIds = new Set(options.excludedIds ?? []);
+    let usedSlots = 0;
+
+    for (const [itemId, record] of Object.entries(inventory ?? {})) {
+        const item = itemsById.get(itemId);
+        if (!item || record?.quantity <= 0 || excludedIds.has(itemId)) continue;
+        usedSlots += item.stackable ? 1 : record.quantity;
+    }
+
+    return usedSlots;
+}
+
 export function countUsageByType(inventory, itemsById, options = {}) {
     let weapons = 0;
     let pets = 0;
@@ -161,12 +174,7 @@ export function countUsageByType(inventory, itemsById, options = {}) {
 
         if (item.type === 'arma') weapons += record.quantity;
         if (item.type === 'mascota') pets += record.quantity;
-        if (NON_CAPACITY_TYPES.has(item.type)) {
-            console.log('skip non-capacity item', { itemId, type: item.type, quantity: record.quantity });
-            continue;
-        }
-
-        const slotUsage = item.stackable ? (item.slotSize ?? 1) : record.quantity * (item.slotSize ?? 1);
+        const slotUsage = item.stackable ? 1 : record.quantity;
         objectUsage += slotUsage;
 
         console.log('counted item', {
@@ -208,9 +216,7 @@ export function partitionInventory({ inventory, order, itemsById, capacity, excl
             return;
         }
 
-        const slotCost = NON_CAPACITY_TYPES.has(item.type)
-            ? 0
-            : (item.stackable ? (item.slotSize ?? 1) : record.quantity * (item.slotSize ?? 1));
+        const slotCost = item.stackable ? 1 : record.quantity;
 
         const entry = { item, quantity: record.quantity, hidden: false };
         if (usedCapacity + slotCost <= capacity || slotCost === 0) {
